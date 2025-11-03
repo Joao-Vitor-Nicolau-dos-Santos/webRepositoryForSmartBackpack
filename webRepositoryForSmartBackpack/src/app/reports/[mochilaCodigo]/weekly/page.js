@@ -289,7 +289,6 @@ export default function WeeklyReportPage({ params }) {
                   <StatCard title="Desvio Padrão" value={`${estatisticas.desvioPadrao} kg`} />
                   <StatCard title="Assimetria" value={estatisticas.assimetria} />
                   <StatCard title="Curtose" value={estatisticas.curtose} />
-                  <StatCard title="Prob. Acima da Média" value={`${estatisticas.probAcimaMedia}%`} />
                   <StatCard title="Regressão" value={estatisticas.regressao.equacao} />
                 </div>
               </div>
