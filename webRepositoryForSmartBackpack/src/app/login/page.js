@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from '@/app/hooks/useAuth'; // Importe o hook
+import { useAuth } from "@/app/hooks/useAuth"; // Importe o hook
 
 export default function LoginPage() {
   const router = useRouter();
@@ -56,7 +56,7 @@ export default function LoginPage() {
         localStorage.setItem("usuarioEmail", form.UsuarioEmail);
         console.log("Tokens salvos no localStorage.");
       } else {
-         throw new Error("Resposta de login inválida: tokens ausentes.");
+        throw new Error("Resposta de login inválida: tokens ausentes.");
       }
 
       // Sincroniza o estado do AuthProvider com o localStorage
@@ -79,35 +79,50 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="bg-[#ADEBB3] min-h-screen flex items-center justify-center p-4">
-      <div className="text-black w-full max-w-md p-8 bg-white rounded-2xl shadow-lg">
-        <h1 className="text-4xl text-center text-pink-500 ">
-          Olá novamente!
-        </h1>
+    <main className="min-h-screen flex items-center justify-center p-4 bg-[#eee]">
+      <div className="text-black w-full max-w-md p-8 rounded-2xl shadow-2xl shadow-black/60 bg-[#F2F2F2]">
+        <h1 className="text-4xl text-center text-pink-500 ">Olá novamente!</h1>
         <p className="text-center text-gray-600 mb-6">
           Faça login para continuar
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <div>
-            <input
-              name="UsuarioEmail"
-              placeholder="Seu e-mail"
-              type="email"
-              className="w-full p-3 rounded-3xl bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-              value={form.UsuarioEmail}
-              onChange={handleChange}
-            />
+            <div>
+              <label
+                htmlFor="UsuarioEmail"
+                className="block text-sm text-black mb-1"
+              >
+                E-mail
+              </label>
+              <input
+                name="UsuarioEmail"
+                placeholder="Seu e-mail"
+                type="email"
+                className="w-full p-3 rounded-3xl bg-[#f7f7f7ff] focus:outline-none focus:ring-2 focus:ring-green-500"
+                value={form.UsuarioEmail}
+                onChange={handleChange}
+              />
+            </div>
           </div>
+
           <div>
-            <input
-              name="UsuarioSenha"
-              placeholder="Sua senha"
-              type="password"
-              className="w-full p-3 rounded-3xl bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-              value={form.UsuarioSenha}
-              onChange={handleChange}
-            />
+            <label
+              htmlFor="UsuarioSenha"
+              className="block text-sm text-black mb-1"
+            >
+              Senha
+            </label>
+            <div>
+              <input
+                name="UsuarioSenha"
+                placeholder="Sua senha"
+                type="password"
+                className="w-full p-3 rounded-3xl bg-[#f7f7f7ff] focus:outline-none focus:ring-2 focus:ring-green-500"
+                value={form.UsuarioSenha}
+                onChange={handleChange}
+              />
+            </div>
           </div>
 
           {error && <p className="text-red-600 text-center text-sm">{error}</p>}
@@ -115,7 +130,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className={`bg-lime-400 hover:scale(1.02) hover:bg-lime-500 transition duration-300 p-3 rounded-3xl text-lg font-medium ${
+            className={`bg-[#5CFF5C] hover:scale(1.02) hover:bg-[#40bf5e] transition duration-300 p-3 rounded-3xl text-lg font-medium ${
               loading ? "opacity-75 cursor-not-allowed" : ""
             }`}
           >

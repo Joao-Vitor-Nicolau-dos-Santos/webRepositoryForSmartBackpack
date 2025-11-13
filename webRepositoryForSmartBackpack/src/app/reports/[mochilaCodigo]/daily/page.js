@@ -1,201 +1,221 @@
 "use client";
 
-import React from "react";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { FiArrowLeft } from "react-icons/fi";
-import { useAuth } from "@/app/hooks/useAuth";
-import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute";
-import Header from "@/components/Header/Header";
-import Chart from "@/components/Chart/Chart";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useAuth } from "@/app/hooks/useAuth"; 
+import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute"; 
+import Header from "@/components/Header/Header"; 
+import Chart from "@/components/Chart/Chart"; 
 import StatCard from "@/components/StatCard/StatCard";
 
-// --- FUNÇÃO AUXILIAR PARA ARREDONDAR PARA 2 CASAS DECIMAIS ---
-function roundTo2(num) {
-  return Math.round(num * 100) / 100;
-}
-// --- FIM DA FUNÇÃO AUXILIAR ---
-
-export default function DailyReportPage({ params }) {
+export default function DailyReportPage() {
   const router = useRouter();
+  const params = useParams(); // Hook para acessar parâmetros dinâmicos da URL
   const { authFetch } = useAuth();
-
-  const today = new Date();
-  const dataFormatada = today.toISOString().split('T')[0]; // 'YYYY-MM-DD'
-
-  // Use React.use para resolver a Promise `params` (conforme o aviso anterior)
-  const resolvedParams = React.use(params);
-  const { mochilaCodigo } = resolvedParams;
+  const { mochilaCodigo } = params;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [reportData, setReportData] = useState([]); // Dados para a tabela
-  const [chartData, setChartData] = useState([]); // Dados para o gráfico
-  // --- Estado para as estatísticas ---
+  const [medicoes, setMedicoes] = useState([]);
   const [estatisticas, setEstatisticas] = useState(null);
-  // --- Fim do estado para as estatísticas ---
+  const [selectedDate, setSelectedDate] = useState(new Date()); // Data inicial: Hoje
+  const [expandedHour, setExpandedHour] = useState(null);
+  const [expandedSubHour, setExpandedSubHour] = useState(null);
+  const [statsExpanded, setStatsExpanded] = useState(true); // Controle para o bloco de estatísticas
+  const animVal = useRef(); // Ref para animação (não usaremos animação no Next.js, mas mantemos para lógica de expansão)
+
+  // --- FUNÇÃO PARA ARREDONDAR ---
+  const roundTo2 = (num) => {
+    return Math.round(num * 100) / 100;
+  };
+  // --- FIM DA FUNÇÃO ---
 
   // --- FUNÇÃO PARA CALCULAR ESTATÍSTICAS ---
   const calcularEstatisticas = (valoresRaw) => {
-    // 1. Filtrar valores válidos (números)
-    const valores = valoresRaw
-      .map(v => parseFloat(v))
-      .filter(v => !isNaN(v));
-
-    if (valores.length === 0) {
-      return null; // Não há dados para calcular
-    }
+    const valores = valoresRaw.filter((v) => typeof v === "number" && !isNaN(v));
+    if (!valores.length) return null;
 
     const n = valores.length;
     const somatorio = valores.reduce((a, b) => a + b, 0);
     const media = somatorio / n;
 
-    // 2. Mediana
     const sorted = [...valores].sort((a, b) => a - b);
-    const mediana = n % 2 === 0
-      ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2
-      : sorted[Math.floor(n / 2)];
+    const mediana = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)];
 
-    // 3. Moda (pode haver mais de uma)
     const freq = {};
-    valores.forEach(v => {
-      const key = roundTo2(v).toString(); // Agrupar por valor arredondado
+    valores.forEach((v) => {
+      const key = roundTo2(v).toString();
       freq[key] = (freq[key] || 0) + 1;
     });
     const maxFreq = Math.max(...Object.values(freq));
-    const modaArray = Object.keys(freq)
-      .filter(k => freq[k] === maxFreq)
-      .map(k => parseFloat(k));
+    const modaArray = Object.keys(freq).filter((k) => freq[k] === maxFreq).map((k) => Number(k));
 
-    // 4. Desvio Padrão (populacional)
     const variancia = valores.reduce((a, b) => a + Math.pow(b - media, 2), 0) / n;
     const desvioPadrao = Math.sqrt(variancia);
 
-    // 5. Assimetria (Fisher-Pearson)
-    // Para evitar divisão por zero
-    const denomSkew = Math.pow(desvioPadrao, 3) || 1;
-    const assimetria =
-      (valores.reduce((a, b) => a + Math.pow(b - media, 3), 0) / n) / denomSkew;
+    const denomSkew = desvioPadrao === 0 ? 1 : Math.pow(desvioPadrao, 3);
+    const denomKurt = desvioPadrao === 0 ? 1 : Math.pow(desvioPadrao, 4);
 
-    // 6. Curtose (Excesso de curtose: kurtosis - 3)
-    const denomKurt = Math.pow(desvioPadrao, 4) || 1;
-    const curtose =
-      (valores.reduce((a, b) => a + Math.pow(b - media, 4), 0) / n) / denomKurt - 3;
-
-    // 7. Probabilidades (ex: P(X > media))
-    const acimaDaMedia = valores.filter(v => v > media).length;
-    const probAcimaMedia = acimaDaMedia / n;
-
-    // 8. Regressão Linear (Peso vs. Índice do Array)
-    // y = a + bx
-    const xVals = valores.map((_, i) => i); // índices 0, 1, 2, ...
-    const yVals = valores; // pesos
-
-    const sumX = xVals.reduce((a, b) => a + b, 0);
-    const sumY = yVals.reduce((a, b) => a + b, 0);
-    const sumXY = xVals.reduce((sum, xi, i) => sum + xi * yVals[i], 0);
-    const sumXX = xVals.reduce((sum, xi) => sum + xi * xi, 0);
-
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
+    const assimetria = (valores.reduce((a, b) => a + Math.pow(b - media, 3), 0) / n) / denomSkew;
+    const curtose = (valores.reduce((a, b) => a + Math.pow(b - media, 4), 0) / n) / denomKurt - 3;
 
     return {
       media: roundTo2(media),
       mediana: roundTo2(mediana),
-      moda: modaArray.length ? modaArray.map(v => roundTo2(v)).join(", ") : "—",
+      moda: modaArray.length ? modaArray.join(", ") : "—",
       desvioPadrao: roundTo2(desvioPadrao),
       assimetria: roundTo2(assimetria),
       curtose: roundTo2(curtose),
-      probAcimaMedia: roundTo2(probAcimaMedia * 100), // em %
-      regressao: {
-        slope: roundTo2(slope),
-        intercept: roundTo2(intercept),
-        equacao: `y = ${roundTo2(intercept)} + ${roundTo2(slope)}x`
-      }
+      totalMedicoes: n,
+      totalPeso: roundTo2(somatorio),
     };
   };
-  // --- FIM DA FUNÇÃO PARA CALCULAR ESTATÍSTICAS ---
+  // --- FIM DA FUNÇÃO ---
 
-  useEffect(() => {
-    const fetchDailyReport = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        setEstatisticas(null); // Limpa estatísticas anteriores
+  // --- FUNÇÃO PARA CALCULAR REGRESSÃO LINEAR ---
+  const calcularRegressaoLinear = (valoresRaw) => {
+    const valores = valoresRaw.filter((v) => typeof v === "number" && Number.isFinite(v));
+    const n = valores.length;
+    if (n < 2) return null;
 
-        // --- CHAMADA PARA A API PARA OBTER O RELATÓRIO DIÁRIO ---
-        const res = await authFetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/medicoes/dia/${dataFormatada}/${mochilaCodigo}`
-        );
+    const x = Array.from({ length: n }, (_, i) => i + 1);
+    const y = valores;
 
-        if (!res.ok) {
-          let errorMessage = `Erro ${res.status}`;
-          try {
-            const errorData = await res.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch (e) {
-            console.error("[DailyReportPage] Erro ao parsear JSON de erro da API:", e);
-          }
-          throw new Error(errorMessage);
-        }
+    const somaX = x.reduce((a, b) => a + b, 0);
+    const somaY = y.reduce((a, b) => a + b, 0);
+    const somaXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+    const somaX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
 
-        const rawData = await res.json();
-        console.log("[DailyReportPage] Dados brutos recebidos da API:", rawData);
+    const denom = n * somaX2 - somaX * somaX;
+    if (denom === 0) return null;
 
-        // --- PROCESSAMENTO DOS DADOS ---
-        let dadosParaGrafico = [];
-        let pesosParaEstatisticas = []; // Array de números para calcular estatísticas
+    const a = (n * somaXY - somaX * somaY) / denom;
+    const b = (somaY - a * somaX) / n;
 
-        if (Array.isArray(rawData)) {
-          dadosParaGrafico = rawData.map((medicao) => {
-            const pesoNum = parseFloat(medicao.MedicaoPeso);
-            pesosParaEstatisticas.push(pesoNum); // Adiciona ao array para estatísticas
-            return {
-              name: new Date(medicao.MedicaoData).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-              peso: pesoNum,
-              local: medicao.MedicaoLocal,
-              status: medicao.MedicaoStatus
-            };
-          });
-        } else {
-          console.warn("[DailyReportPage] Resposta da API não é um array. Tentando processar como objeto.");
-          if (rawData && typeof rawData === "object") {
-            for (const [key, medicao] of Object.entries(rawData)) {
-              if (medicao && medicao.MedicaoData) {
-                const pesoNum = parseFloat(medicao.MedicaoPeso);
-                pesosParaEstatisticas.push(pesoNum);
-                dadosParaGrafico.push({
-                  name: key,
-                  peso: pesoNum,
-                  local: medicao.MedicaoLocal,
-                  status: medicao.MedicaoStatus
-                });
-              }
-            }
-          }
-        }
+    return { a: roundTo2(a), b: roundTo2(b) };
+  };
+  // --- FIM DA FUNÇÃO ---
 
-        setChartData(dadosParaGrafico);
-        setReportData(rawData); // Para uso futuro (tabela, etc.)
+  // --- FUNÇÃO PARA BUSCAR O RELATÓRIO ---
+  const buscarRelatorio = async (data, codigo) => {
+    try {
+      setLoading(true);
+      setError("");
+      setMedicoes([]);
+      setEstatisticas(null);
 
-        // --- CALCULAR ESTATÍSTICAS ---
-        const stats = calcularEstatisticas(pesosParaEstatisticas);
-        setEstatisticas(stats);
-        // --- FIM DO CÁLCULO DAS ESTATÍSTICAS ---
+      const resposta = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/medicoes/dia/${format(data, "yyyy-MM-dd", { locale: ptBR })}/${codigo}`
+      );
 
-      } catch (err) {
-        console.error("[DailyReportPage] Erro ao carregar relatório:", err);
-        setError(err.message || "Falha ao carregar o relatório diário.");
-        setChartData([]);
-        setReportData([]);
-        setEstatisticas(null);
-      } finally {
-        setLoading(false);
+      if (!resposta.ok) {
+        const erroData = await resposta.json();
+        throw new Error(erroData.error || `Erro ${resposta.status} ao obter relatório diário`);
       }
-    };
 
-    fetchDailyReport();
-  }, [authFetch, mochilaCodigo]);
+      const dados = await resposta.json();
+      setMedicoes(dados);
+
+      // --- PROCESSAMENTO DOS DADOS PARA O GRÁFICO E ESTATÍSTICAS ---
+      const mapaHoraMinuto = {};
+      dados.forEach((item) => {
+        const d = new Date(item.MedicaoData);
+        const hora = d.getHours().toString().padStart(2, "0");
+        const minuto = d.getMinutes().toString().padStart(2, "0");
+        const chave = `${hora}:${minuto}`;
+
+        if (!mapaHoraMinuto[chave]) mapaHoraMinuto[chave] = [];
+        mapaHoraMinuto[chave].push(item);
+      });
+
+      const totais = Object.values(mapaHoraMinuto).map((lista) => {
+        const esquerda = lista.filter((v) => v.MedicaoLocal?.toLowerCase().includes("esquerda"));
+        const direita = lista.filter((v) => v.MedicaoLocal?.toLowerCase().includes("direita"));
+
+        const pesoEsq = esquerda.reduce((acc, v) => acc + Number(v.MedicaoPeso || 0), 0) / (esquerda.length || 1);
+        const pesoDir = direita.reduce((acc, v) => acc + Number(v.MedicaoPeso || 0), 0) / (direita.length || 1);
+
+        return roundTo2(pesoEsq + pesoDir);
+      });
+
+      const stats = calcularEstatisticas(totais);
+      const regressao = calcularRegressaoLinear(totais);
+      const regressaoText = regressao ? `y = ${regressao.a}x + ${regressao.b}` : "Regressão não aplicável";
+
+      if (stats) {
+        setEstatisticas({
+          ...stats,
+          regressao: regressaoText,
+        });
+      } else {
+        setEstatisticas({ regressao: regressaoText });
+      }
+
+    } catch (err) {
+      console.error("Erro ao carregar relatório:", err);
+      setError(err.message || "Erro ao conectar no servidor.");
+      setMedicoes([]);
+      setEstatisticas(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // --- FIM DA FUNÇÃO ---
+
+  // --- EFEITO PARA CARREGAR OS DADOS AO MONTAR ---
+  useEffect(() => {
+    if (mochilaCodigo) {
+      buscarRelatorio(selectedDate, mochilaCodigo);
+    }
+  }, [selectedDate, mochilaCodigo]); // Re-executa se a data ou o código da mochila mudarem
+  // --- FIM DO EFEITO ---
+
+  // --- FUNÇÃO PARA AGRUPAR POR INTERVALO ---
+  const agruparPorIntervalo = () => {
+    const grupos = {};
+    medicoes.forEach((item) => {
+      const hora = new Date(item.MedicaoData).getHours();
+      const intervalo = Math.floor(hora / 3) * 3;
+      const key = `${intervalo.toString().padStart(2, "0")}:00 - ${(intervalo + 3).toString().padStart(2, "0")}:00`;
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(item);
+    });
+    return grupos;
+  };
+  // --- FIM DA FUNÇÃO ---
+
+  const grupos = agruparPorIntervalo();
+
+  // --- DADOS PARA O GRÁFICO ---
+  const horas = Array.from({ length: 8 }, (_, i) => `${(i * 3).toString().padStart(2, "0")}:00`);
+  const medias = horas.map((h, i) => {
+    const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
+    const med = grupos[key];
+    if (!med || med.length === 0) return 0;
+
+    const esquerda = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("esquerda"));
+    const direita = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("direita"));
+
+    const mediaEsq = esquerda.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (esquerda.length || 1);
+    const mediaDir = direita.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (direita.length || 1);
+
+    const total = mediaEsq + mediaDir;
+    return parseFloat(total.toFixed(2));
+  });
+
+  const chartData = {
+    labels: horas,
+    datasets: [
+      {
+        data: medias,
+        color: () => "#43a047",
+        strokeWidth: 2,
+      },
+    ],
+  };
 
   if (loading) {
     return (
@@ -217,7 +237,7 @@ export default function DailyReportPage({ params }) {
             <p>Erro: {error}</p>
             <button
               onClick={() => router.push(`/reports/${mochilaCodigo}`)}
-              className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+              className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
             >
               Voltar para Opções
             </button>
@@ -230,9 +250,9 @@ export default function DailyReportPage({ params }) {
   return (
     <ProtectedRoute>
       <Header />
-      <main className="min-h-screen p-6 bg-gray-50 text-black">
-        <div className="max-w-6xl mx-auto">
-          {/* Cabeçalho com botão de voltar e título */}
+      <main className="min-h-screen p-8 bg-gray-50 text-black">
+        <div className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+          {/* Cabeçalho com botão de voltar */}
           <div className="flex items-center mb-6">
             <button
               onClick={() => router.back()}
@@ -247,74 +267,193 @@ export default function DailyReportPage({ params }) {
             </div>
           </div>
 
-          {/* Conteúdo do Relatório */}
-          <div className="mt-8 space-y-8">
-            {/* Gráfico */}
-            <Chart dados={chartData} titulo="Dados do Relatório Diário" />
+          {/* Seletor de Data */}
+          <div className="mb-6 p-4 bg-gray-100 rounded-lg">
+            <label htmlFor="dataSelecionada" className="block text-sm font-medium text-gray-700 mb-2">
+              Selecione a Data
+            </label>
+            <input
+              id="dataSelecionada"
+              type="date"
+              value={format(selectedDate, "yyyy-MM-dd")}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
 
-            {/* --- SEÇÃO DE ESTATÍSTICAS --- */}
-            {estatisticas ? (
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-semibold mb-4">Indicadores Estatísticos</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <StatCard className="bg-gray-300" title="Média" value={`${estatisticas.media} kg`} />
-                  <StatCard className="bg-gray-300" title="Mediana" value={`${estatisticas.mediana} kg`} />
-                  <StatCard className="bg-gray-300" title="Moda" value={estatisticas.moda} />
-                  <StatCard className="bg-gray-300" title="Desvio Padrão" value={`${estatisticas.desvioPadrao} kg`} />
-                  <StatCard className="bg-gray-300" title="Assimetria" value={estatisticas.assimetria} />
-                  <StatCard className="bg-gray-300" title="Curtose" value={estatisticas.curtose} />
-                  <StatCard className="bg-gray-300" title="Regressão" value={estatisticas.regressao.equacao} />
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center">Nenhuma medição disponível para cálculo estatístico.</p>
-            )}
-            {/* --- FIM DA SEÇÃO DE ESTATÍSTICAS --- */}
+          {/* Botão para buscar relatório (opcional, pois já atualiza ao mudar a data) */}
+          {/* <button
+            onClick={() => buscarRelatorio(selectedDate, mochilaCodigo)}
+            className="mb-6 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+          >
+            Buscar Relatório
+          </button> */}
 
-            {/* Tabela de Dados (Exemplo - descomente e adapte conforme necessário) */}
-            {/* 
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-xl font-semibold mb-4">Dados Detalhados</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peso (kg)</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Local</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {reportData.length > 0 ? (
-                      reportData.map((item, index) => (
-                        <tr key={index}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(item.MedicaoData).toLocaleString('pt-BR')}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {item.MedicaoPeso}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {item.MedicaoLocal}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {item.MedicaoStatus}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
-                          Nenhum dado disponível.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+          {/* --- BLOCO DE ESTATÍSTICAS --- */}
+          <div className="mb-8 bg-gray-50 p-4 rounded-xl">
+            <div
+              className="flex justify-between items-center cursor-pointer"
+              onClick={() => setStatsExpanded(!statsExpanded)}
+            >
+              <h3 className="text-xl font-bold">📈 Indicadores Estatísticos</h3>
+              <span>{statsExpanded ? "▼" : "▶"}</span>
             </div>
-            */}
+
+            {statsExpanded && estatisticas && (
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard title="Total Medições" value={estatisticas.totalMedicoes} />
+                <StatCard title="Total Peso" value={`${estatisticas.totalPeso} kg`} />
+                <StatCard title="Média (kg)" value={estatisticas.media} />
+                <StatCard title="Mediana (kg)" value={estatisticas.mediana} />
+                <StatCard title="Moda (kg)" value={estatisticas.moda} />
+                <StatCard title="Desvio Padrão (kg)" value={estatisticas.desvioPadrao} />
+                <StatCard title="Assimetria" value={estatisticas.assimetria} />
+                <StatCard title="Curtose" value={estatisticas.curtose} />
+                <StatCard title="Regressão Linear" value={estatisticas.regressao} />
+              </div>
+            )}
+            {statsExpanded && !estatisticas && (
+              <p className="text-gray-500 text-center mt-2">Nenhum dado disponível para cálculo estatístico.</p>
+            )}
+          </div>
+          {/* --- FIM DO BLOCO DE ESTATÍSTICAS --- */}
+
+          {/* Gráfico */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold mb-4">📊 Média de Peso por Intervalo (3h)</h3>
+            <Chart dados={chartData.datasets[0].data} labels={chartData.labels} titulo="Peso Médio por Intervalo" />
+          </div>
+
+          {/* Gráfico de Comparação Esquerda x Direita */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold mb-4">⚖️ Comparativo Esquerda x Direita (3h)</h3>
+            <Chart
+              dados={[
+                {
+                  data: horas.map((h, i) => {
+                    const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
+                    const med = grupos[key];
+                    if (!med || med.length === 0) return 0;
+                    const esquerda = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("esquerda"));
+                    const mediaEsq = esquerda.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (esquerda.length || 1);
+                    return parseFloat(mediaEsq.toFixed(2));
+                  }),
+                  color: () => "#F46334",
+                  strokeWidth: 2,
+                },
+                {
+                  data: horas.map((h, i) => {
+                    const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
+                    const med = grupos[key];
+                    if (!med || med.length === 0) return 0;
+                    const direita = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("direita"));
+                    const mediaDir = direita.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (direita.length || 1);
+                    return parseFloat(mediaDir.toFixed(2));
+                  }),
+                  color: () => "#36985B",
+                  strokeWidth: 2,
+                },
+              ]}
+              labels={horas}
+              titulo="Comparativo de Peso por Intervalo"
+            />
+          </div>
+
+          {/* Detalhes por Intervalo */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Detalhes das Medições (3 em 3 horas)</h3>
+            {horas.map((h, i) => {
+              const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
+              const itens = grupos[key];
+
+              if (!itens || itens.length === 0) return null;
+
+              const subGrupos = {};
+              itens.forEach((item) => {
+                const hora = new Date(item.MedicaoData).getHours().toString().padStart(2, "0");
+                if (!subGrupos[hora]) subGrupos[hora] = [];
+                subGrupos[hora].push(item);
+              });
+
+              return (
+                <div key={key} className="border rounded-lg overflow-hidden">
+                  <div
+                    className={`p-4 cursor-pointer flex justify-between items-center ${
+                      expandedHour === key ? "bg-gray-100" : "bg-white"
+                    }`}
+                    onClick={() => setExpandedHour(expandedHour === key ? null : key)}
+                  >
+                    <span>{key}</span>
+                    <span>{expandedHour === key ? "▼" : "▶"}</span>
+                  </div>
+
+                  {expandedHour === key && (
+                    <div className="bg-gray-50 p-2">
+                      {Object.entries(subGrupos).map(([subHora, lista]) => {
+                        const mediasHora = lista.map((item) => ({
+                          hora: new Date(item.MedicaoData).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+                          pesoEsq: 0, // Será calculado abaixo
+                          pesoDir: 0, // Será calculado abaixo
+                          total: 0,   // Será calculado abaixo
+                          inclinacao: "",
+                        }));
+
+                        // Agrupar por lado e calcular médias
+                        const esquerda = lista.filter((v) => v.MedicaoLocal?.toLowerCase().includes("esquerda"));
+                        const direita = lista.filter((v) => v.MedicaoLocal?.toLowerCase().includes("direita"));
+
+                        const pesoEsq = esquerda.reduce((acc, v) => acc + Number(v.MedicaoPeso || 0), 0) / (esquerda.length || 1);
+                        const pesoDir = direita.reduce((acc, v) => acc + Number(v.MedicaoPeso || 0), 0) / (direita.length || 1);
+                        const total = pesoEsq + pesoDir;
+                        const inclinacao = pesoEsq === pesoDir ? "equilibrado" : pesoEsq > pesoDir ? "esquerda" : "direita";
+
+                        const dadosProcessados = mediasHora.map((m) => ({
+                          ...m,
+                          pesoEsq: roundTo2(pesoEsq),
+                          pesoDir: roundTo2(pesoDir),
+                          total: roundTo2(total),
+                          inclinacao,
+                        }));
+
+                        return (
+                          <div key={subHora}>
+                            <div
+                              className={`p-3 cursor-pointer flex justify-between items-center ${
+                                expandedSubHour === subHora ? "bg-gray-200" : "bg-gray-100"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedSubHour(expandedSubHour === subHora ? null : subHora);
+                              }}
+                            >
+                              <span>{subHora}:00</span>
+                              <span>{expandedSubHour === subHora ? "▼" : "▶"}</span>
+                            </div>
+
+                            {expandedSubHour === subHora &&
+                              dadosProcessados.map((dado, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`p-3 m-2 rounded-lg ${
+                                    dado.total > 10 ? "bg-red-100 border-red-300" : "bg-green-100 border-green-300" // Exemplo de cor baseado em peso (ajuste conforme necessário)
+                                  } border`}
+                                >
+                                  <p>Hora: {dado.hora}</p>
+                                  <p>Peso Esquerdo: {dado.pesoEsq} kg</p>
+                                  <p>Peso Direito: {dado.pesoDir} kg</p>
+                                  <p>Total: {dado.total} kg</p>
+                                  <p>Inclinação: {dado.inclinacao}</p>
+                                  {dado.total > 10 && <p className="text-red-600"> Peso acima do limite!</p>} {/* Exemplo de alerta */}
+                                </div>
+                              ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </main>

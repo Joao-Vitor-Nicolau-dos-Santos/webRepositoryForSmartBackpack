@@ -192,7 +192,7 @@ export default function ProfilePage() {
               <div className="flex justify-center mt-6">
                 <button
                   onClick={handleEditClick}
-                  className="px-6 py-2 bg-green-400 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  className="px-6 py-2 border-[#5CFF5C] border-2 hover:scale(1.02) hover:bg-[#40bf5e] transition duration-300 text-green-900 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                 >
                   Editar Perfil
                 </button>
@@ -334,8 +334,7 @@ export default function ProfilePage() {
           )}
 
           {/* Seção de Logout */}
-          <div className="mt-12 pt-6 border-t border-gray-200">
-            <h3 className="text-lg font-semibold mb-4 text-center">Sair da Conta</h3>
+          <div className="mt-2 border-t border-gray-200">
             <div className="flex justify-center">
               <button
                 onClick={logout}

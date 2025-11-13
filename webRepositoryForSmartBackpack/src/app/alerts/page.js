@@ -117,8 +117,7 @@ export default function AlertsPage() {
               onChange={(e) => setStatusSelecionado(e.target.value)}
               className="ml-2 p-1 border rounded"
             >
-              <option value="Enviar">Enviar</option>
-              <option value="Enviado">Enviado</option>
+              <option value="Enviar">Não Lidos</option>
               <option value="Lido">Lido</option>
             </select>
           </p>
@@ -152,7 +151,7 @@ export default function AlertsPage() {
                             e.stopPropagation();
                             handleMarcarComoLido(alerta.AlertaId);
                           }}
-                          className="mt-3 text-xs bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+                          className="mt-3 text-xs border-[#5CFF5C] border-2 hover:scale(1.02) hover:border-[#40bf5e] hover:bg-green-100 transition duration-300 text-green-900 px-3 py-1 rounded"
                         >
                           Marcar como Lido
                         </button>
@@ -160,15 +159,13 @@ export default function AlertsPage() {
                     </div>
                   }
                 >
-                  {/* Se quiser adicionar conteúdo adicional dentro do Card, pode colocar aqui como children */}
-                  {/* Por exemplo, um botão para ver detalhes */}
                   <div className="mt-3 flex justify-center">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         router.push(`/alerts/${alerta.AlertaId}`);
                       }}
-                      className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                      className="text-xs bg-[#59a6a3] text-white px-3 py-1 rounded"
                     >
                       Ver Detalhes
                     </button>

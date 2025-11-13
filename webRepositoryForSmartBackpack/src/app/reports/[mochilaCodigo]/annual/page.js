@@ -1,10 +1,9 @@
 "use client";
 
-import React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react"; 
 import { useRouter } from "next/navigation";
 import { FiArrowLeft } from "react-icons/fi";
-import { useAuth } from "@/app/hooks/useAuth";
+import { useAuth } from "@/app/hooks/useAuth"; 
 import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute";
 import Header from "@/components/Header/Header";
 import Chart from "@/components/Chart/Chart";
@@ -16,185 +15,101 @@ function roundTo2(num) {
 }
 // --- FIM DA FUNÇÃO AUXILIAR ---
 
-export default function WeeklyReportPage({ params }) {
+export default function AnnualReportPage({ params }) { 
   const router = useRouter();
   const { authFetch } = useAuth();
 
   const anoAtual = new Date().getFullYear();
-
-  // Use React.use para resolver a Promise `params` (conforme o aviso anterior)
-  const resolvedParams = React.use(params);
-  const { mochilaCodigo } = resolvedParams;
+  // --- CORREÇÃO AQUI: Usar React.use() para desempacotar params ---
+  const { mochilaCodigo } = use(params);
+  // --- FIM DA CORREÇÃO ---
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [reportData, setReportData] = useState([]); // Dados para a tabela
-  const [chartData, setChartData] = useState([]); // Dados para o gráfico
-  // --- Estado para as estatísticas ---
+  const [chartData, setChartData] = useState([]); // Agora será um array de 12 médias mensais
   const [estatisticas, setEstatisticas] = useState(null);
-  // --- Fim do estado para as estatísticas ---
+  const [selectedYear, setSelectedYear] = useState(anoAtual);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // --- FUNÇÃO PARA CALCULAR ESTATÍSTICAS ---
-  const calcularEstatisticas = (valoresRaw) => {
-    // 1. Filtrar valores válidos (números)
-    const valores = valoresRaw
-      .map(v => parseFloat(v))
-      .filter(v => !isNaN(v));
+  // --- FUNÇÃO PARA CARREGAR O RELATÓRIO ANUAL ---
+  const loadReport = async (mochilaCodigo, ano) => {
+    try {
+      if (loading) setLoading(true);
+      setError("");
+      setEstatisticas(null);
+      setChartData(Array(12).fill(0));
 
-    if (valores.length === 0) {
-      return null; // Não há dados para calcular
-    }
+      const res = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/medicoes/anual/${ano}/${mochilaCodigo}`
+      );
 
-    const n = valores.length;
-    const somatorio = valores.reduce((a, b) => a + b, 0);
-    const media = somatorio / n;
-
-    // 2. Mediana
-    const sorted = [...valores].sort((a, b) => a - b);
-    const mediana = n % 2 === 0
-      ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2
-      : sorted[Math.floor(n / 2)];
-
-    // 3. Moda (pode haver mais de uma)
-    const freq = {};
-    valores.forEach(v => {
-      const key = roundTo2(v).toString(); // Agrupar por valor arredondado
-      freq[key] = (freq[key] || 0) + 1;
-    });
-    const maxFreq = Math.max(...Object.values(freq));
-    const modaArray = Object.keys(freq)
-      .filter(k => freq[k] === maxFreq)
-      .map(k => parseFloat(k));
-
-    // 4. Desvio Padrão (populacional)
-    const variancia = valores.reduce((a, b) => a + Math.pow(b - media, 2), 0) / n;
-    const desvioPadrao = Math.sqrt(variancia);
-
-    // 5. Assimetria (Fisher-Pearson)
-    // Para evitar divisão por zero
-    const denomSkew = Math.pow(desvioPadrao, 3) || 1;
-    const assimetria =
-      (valores.reduce((a, b) => a + Math.pow(b - media, 3), 0) / n) / denomSkew;
-
-    // 6. Curtose (Excesso de curtose: kurtosis - 3)
-    const denomKurt = Math.pow(desvioPadrao, 4) || 1;
-    const curtose =
-      (valores.reduce((a, b) => a + Math.pow(b - media, 4), 0) / n) / denomKurt - 3;
-
-    // 7. Probabilidades (ex: P(X > media))
-    const acimaDaMedia = valores.filter(v => v > media).length;
-    const probAcimaMedia = acimaDaMedia / n;
-
-    // 8. Regressão Linear (Peso vs. Índice do Array)
-    // y = a + bx
-    const xVals = valores.map((_, i) => i); // índices 0, 1, 2, ...
-    const yVals = valores; // pesos
-
-    const sumX = xVals.reduce((a, b) => a + b, 0);
-    const sumY = yVals.reduce((a, b) => a + b, 0);
-    const sumXY = xVals.reduce((sum, xi, i) => sum + xi * yVals[i], 0);
-    const sumXX = xVals.reduce((sum, xi) => sum + xi * xi, 0);
-
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
-
-    return {
-      media: roundTo2(media),
-      mediana: roundTo2(mediana),
-      moda: modaArray.length ? modaArray.map(v => roundTo2(v)).join(", ") : "—",
-      desvioPadrao: roundTo2(desvioPadrao),
-      assimetria: roundTo2(assimetria),
-      curtose: roundTo2(curtose),
-      probAcimaMedia: roundTo2(probAcimaMedia * 100), // em %
-      regressao: {
-        slope: roundTo2(slope),
-        intercept: roundTo2(intercept),
-        equacao: `y = ${roundTo2(intercept)} + ${roundTo2(slope)}x`
+      if (!res.ok) {
+        let errorMessage = `Erro ${res.status}`;
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorData.mensagem || errorMessage;
+        } catch (e) {
+          console.error("[AnnualReportPage] Erro ao parsear JSON de erro da API:", e);
+        }
+        throw new Error(errorMessage);
       }
-    };
+
+      const rawData = await res.json();
+      console.log("[AnnualReportPage] Dados brutos recebidos da API:", rawData); // <-- LOG DE DIAGNÓSTICO
+
+      // --- PROCESSAMENTO DOS DADOS ---
+      let mediasMensais = Array.isArray(rawData.mediasMensais) ? rawData.mediasMensais : Array(12).fill(0);
+      console.log("[AnnualReportPage] Array de médias bruto:", mediasMensais); // <-- LOG DE DIAGNÓSTICO
+
+      mediasMensais = Array.from({ length: 12 }, (_, i) => {
+        const v = mediasMensais[i];
+        const n = typeof v === "number" && Number.isFinite(v) ? v : Number(parseFloat(v));
+        const finalValue = Number.isFinite(n) ? roundTo2(n) : 0;
+        console.log(`[AnnualReportPage] Média para mês ${i}: ${v} -> ${n} -> ${finalValue}`); // <-- LOG DE DIAGNÓSTICO
+        return finalValue;
+      });
+
+      const meses = [
+        "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+        "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+      ];
+      const dadosParaGrafico = meses.map((nome, index) => ({
+        name: nome,
+        peso: mediasMensais[index],
+      }));
+
+      console.log("[AnnualReportPage] Dados para o gráfico:", dadosParaGrafico); // <-- LOG DE DIAGNÓSTICO
+
+      setChartData(dadosParaGrafico);
+      setEstatisticas(rawData.estatisticas || null);
+      console.log("[AnnualReportPage] Estatísticas definidas:", rawData.estatisticas || null); // <-- LOG DE DIAGNÓSTICO
+
+    } catch (err) {
+      console.error("[AnnualReportPage] Erro ao carregar relatório:", err);
+      setError(err.message || "Falha ao carregar o relatório anual.");
+      setChartData(Array(12).fill(0));
+      setEstatisticas(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
-  // --- FIM DA FUNÇÃO PARA CALCULAR ESTATÍSTICAS ---
 
   useEffect(() => {
-    const fetchWeeklyReport = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        setEstatisticas(null); // Limpa estatísticas anteriores
+    if (mochilaCodigo) {
+      loadReport(mochilaCodigo, selectedYear);
+    }
+  }, [mochilaCodigo, selectedYear]);
 
-        // --- CHAMADA PARA A API PARA OBTER O RELATÓRIO ANUAL ---
-        const res = await authFetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/medicoes/anual/${anoAtual}/${mochilaCodigo}`
-        );
+  const handleYearChange = (e) => {
+    const novoAno = Number(e.target.value);
+    setSelectedYear(novoAno);
+  };
 
-        if (!res.ok) {
-          let errorMessage = `Erro ${res.status}`;
-          try {
-            const errorData = await res.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch (e) {
-            console.error("[WeeklyReportPage] Erro ao parsear JSON de erro da API:", e);
-          }
-          throw new Error(errorMessage);
-        }
-
-        const rawData = await res.json();
-        console.log("[WeeklyReportPage] Dados brutos recebidos da API:", rawData);
-
-        // --- PROCESSAMENTO DOS DADOS ---
-        let dadosParaGrafico = [];
-        let pesosParaEstatisticas = []; // Array de números para calcular estatísticas
-
-        if (Array.isArray(rawData)) {
-          dadosParaGrafico = rawData.map((medicao) => {
-            const pesoNum = parseFloat(medicao.MedicaoPeso);
-            pesosParaEstatisticas.push(pesoNum); // Adiciona ao array para estatísticas
-            return {
-              name: new Date(medicao.MedicaoData).toLocaleDateString("pt-BR"),
-              peso: pesoNum,
-              local: medicao.MedicaoLocal,
-              status: medicao.MedicaoStatus,
-            };
-          });
-        } else {
-          console.warn("[WeeklyReportPage] Resposta da API não é um array. Tentando processar como objeto.");
-          if (rawData && typeof rawData === "object") {
-            for (const [key, medicao] of Object.entries(rawData)) {
-              if (medicao && medicao.MedicaoData) {
-                const pesoNum = parseFloat(medicao.MedicaoPeso);
-                pesosParaEstatisticas.push(pesoNum);
-                dadosParaGrafico.push({
-                  name: key,
-                  peso: pesoNum,
-                  local: medicao.MedicaoLocal,
-                  status: medicao.MedicaoStatus,
-                });
-              }
-            }
-          }
-        }
-
-        setChartData(dadosParaGrafico);
-        setReportData(rawData); // Para uso futuro (tabela, etc.)
-
-        // --- CALCULAR ESTATÍSTICAS ---
-        const stats = calcularEstatisticas(pesosParaEstatisticas);
-        setEstatisticas(stats);
-        // --- FIM DO CÁLCULO DAS ESTATÍSTICAS ---
-
-      } catch (err) {
-        console.error("[WeeklyReportPage] Erro ao carregar relatório:", err);
-        setError(err.message || "Falha ao carregar o relatório anual.");
-        setChartData([]);
-        setReportData([]);
-        setEstatisticas(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWeeklyReport();
-  }, [authFetch, mochilaCodigo]);
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadReport(mochilaCodigo, selectedYear);
+  };
 
   if (loading) {
     return (
@@ -226,12 +141,64 @@ export default function WeeklyReportPage({ params }) {
     );
   }
 
+  const possuiDadosGrafico = chartData.some(item => item.peso > 0);
+  const temEstatisticas = !!estatisticas;
+
+  if (!possuiDadosGrafico && !temEstatisticas) {
+    return (
+      <ProtectedRoute>
+        <Header />
+        <main className="min-h-screen p-6 bg-gray-50 text-black">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center mb-6">
+              <button
+                onClick={() => router.back()}
+                className="mr-4 p-2 rounded-full hover:bg-gray-200 transition-colors duration-200"
+                aria-label="Voltar"
+              >
+                <FiArrowLeft size={24} />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold">Relatório Anual</h1>
+                <p className="text-gray-600">Mochila: {mochilaCodigo}</p>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
+              <label htmlFor="yearSelector" className="block text-sm font-medium text-gray-700 mb-2">
+                Selecione o Ano
+              </label>
+              <select
+                id="yearSelector"
+                value={selectedYear}
+                onChange={handleYearChange}
+                className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              >
+                {[...Array(5)].map((_, i) => {
+                  const ano = new Date().getFullYear() - 2 + i;
+                  return (
+                    <option key={ano} value={ano}>
+                      {ano}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <p className="text-gray-500 text-center">Nenhuma medição encontrada. Selecione outro ano.</p>
+            </div>
+          </div>
+        </main>
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <Header />
       <main className="min-h-screen p-6 bg-gray-50 text-black">
         <div className="max-w-6xl mx-auto">
-          {/* Cabeçalho com botão de voltar e título */}
           <div className="flex items-center mb-6">
             <button
               onClick={() => router.back()}
@@ -246,78 +213,60 @@ export default function WeeklyReportPage({ params }) {
             </div>
           </div>
 
-          {/* Conteúdo do Relatório */}
-          <div className="mt-8 space-y-8">
-            {/* Gráfico */}
-            <Chart dados={chartData} titulo="Dados do Relatório Anual" />
+          <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
+            <label htmlFor="yearSelector" className="block text-sm font-medium text-gray-700 mb-2">
+              Selecione o Ano
+            </label>
+            <select
+              id="yearSelector"
+              value={selectedYear}
+              onChange={handleYearChange}
+              className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              {[...Array(5)].map((_, i) => {
+                const ano = new Date().getFullYear() - 2 + i;
+                return (
+                  <option key={ano} value={ano}>
+                    {ano}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
 
-            {/* --- SEÇÃO DE ESTATÍSTICAS --- */}
-            {estatisticas ? (
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-semibold mb-4">Indicadores Estatísticos</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <StatCard title="Média" value={`${estatisticas.media} kg`} />
-                  <StatCard title="Mediana" value={`${estatisticas.mediana} kg`} />
-                  <StatCard title="Moda" value={estatisticas.moda} />
-                  <StatCard title="Desvio Padrão" value={`${estatisticas.desvioPadrao} kg`} />
-                  <StatCard title="Assimetria" value={estatisticas.assimetria} />
-                  <StatCard title="Curtose" value={estatisticas.curtose} />
-                  <StatCard title="Regressão" value={estatisticas.regressao.equacao} />
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center">Nenhuma medição disponível para cálculo estatístico.</p>
-            )}
-            {/* --- FIM DA SEÇÃO DE ESTATÍSTICAS --- */}
-
-            {/* Tabela de Dados (Exemplo - descomente e adapte conforme necessário) */}
-            {/* 
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-xl font-semibold mb-4">Dados Detalhados</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peso (kg)</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Local</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {reportData.length > 0 ? (
-                      reportData.map((item, index) => (
-                        <tr key={index}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(item.MedicaoData).toLocaleString('pt-BR')}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {item.MedicaoPeso}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {item.MedicaoLocal}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {item.MedicaoStatus}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
-                          Nenhum dado disponível.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+          {temEstatisticas && estatisticas ? (
+            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+              <h2 className="text-xl font-semibold mb-4">Indicadores Estatísticos</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <StatCard title="Média (kg)" value={estatisticas.media} />
+                <StatCard title="Mediana (kg)" value={estatisticas.mediana} />
+                <StatCard title="Moda (kg)" value={estatisticas.moda} />
+                <StatCard title="Desvio Padrão (kg)" value={estatisticas.desvioPadrao} />
+                <StatCard title="Assimetria" value={estatisticas.assimetria} />
+                <StatCard title="Curtose" value={estatisticas.curtose} />
+                <StatCard title="P(X > μ) (%)" value={`${estatisticas.probAcimaMedia}%`} />
+                <StatCard title="Regressão Linear" value={estatisticas.regressao?.equacao || "—"} />
               </div>
             </div>
-            */}
+          ) : (
+            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+              <p className="text-gray-500 text-center">Nenhuma medição disponível para cálculo estatístico.</p>
+            </div>
+          )}
+
+          <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 className="text-xl font-semibold mb-4">📊 Média de Peso por Mês</h2>
+            {possuiDadosGrafico ? (
+              <Chart
+                dados={chartData}
+                titulo={`Média de Peso por Mês - ${selectedYear}`}
+              />
+            ) : (
+              <p className="text-gray-500 text-center">Dados insuficientes para gerar o gráfico.</p>
+            )}
           </div>
         </div>
       </main>
     </ProtectedRoute>
   );
 }
-

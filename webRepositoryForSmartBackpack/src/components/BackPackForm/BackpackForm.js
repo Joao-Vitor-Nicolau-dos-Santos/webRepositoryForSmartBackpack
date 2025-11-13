@@ -41,7 +41,7 @@ export default function BackpackForm({ onSubmit, placeholderCodigo = "Código da
         placeholder={placeholderDescricao}
         className="p-2 rounded bg-green-100"
       />
-      <button type="submit" className="bg-lime-400 p-2 rounded">
+      <button type="submit" className="bg-[#5CFF5C] hover:scale(1.02) hover:bg-[#40bf5e] transition duration-300 p-2 rounded">
         Vincular mochila
       </button>
     </form>

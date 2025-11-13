@@ -167,7 +167,7 @@ export default function BackpackPage() {
                     ) : (
                       <button
                         onClick={() => handleAssumirUso(m.MochilaCodigo)}
-                        className="bg-green-400 hover:bg-green-500 text-white px-3 py-1 rounded text-sm"
+                        className="bg-[#5CFF5C] hover:scale(1.02) hover:bg-[#40bf5e] transition duration-300 text-white px-3 py-1 rounded text-sm"
                       >
                         Assumir uso
                       </button>

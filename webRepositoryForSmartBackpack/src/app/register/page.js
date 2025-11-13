@@ -56,10 +56,10 @@ export default function RegisterPage() {
         const minusculas = (senha.match(/[a-z]/g) || []).length;
         const numeros = (senha.match(/[0-9]/g) || []).length;
         const especiais = (senha.match(/[^A-Za-z0-9]/g) || []).length;
-        if (maiusculas < 2) newErrors.UsuarioSenha = "A senha deve ter pelo menos 2 letras maiúsculas.";
-        else if (minusculas < 2) newErrors.UsuarioSenha = "A senha deve ter pelo menos 2 letras minúsculas.";
-        else if (numeros < 2) newErrors.UsuarioSenha = "A senha deve ter pelo menos 2 números.";
-        else if (especiais < 2) newErrors.UsuarioSenha = "A senha deve ter pelo menos 2 caracteres especiais.";
+        if (maiusculas < 1) newErrors.UsuarioSenha = "A senha deve ter pelo menos 1 letra maiúscula.";
+        else if (minusculas < 1) newErrors.UsuarioSenha = "A senha deve ter pelo menos 1 letra minúscula.";
+        else if (numeros < 1) newErrors.UsuarioSenha = "A senha deve ter pelo menos 1 número.";
+        else if (especiais < 1) newErrors.UsuarioSenha = "A senha deve ter pelo menos 1 caractere especial.";
       }
     }
 
@@ -103,7 +103,7 @@ export default function RegisterPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("http://localhost:3000/usuarios", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/usuarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -143,21 +143,21 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="bg-[#ADEBB3] min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl p-8 bg-[#F2F2F2] rounded-2xl text-black shadow-lg">
+    <main className=" min-h-screen flex items-center justify-center p-4 bg-[#eee]">
+      <div className="w-full max-w-2xl p-8 bg-[#F2F2F2] rounded-2xl text-black shadow-2xl shadow-black/60">
         <h1 className="text-3xl text-center text-pink-500 font-bold mb-2">Seja bem-vindo!</h1>
         <p className="text-center text-gray-600 mb-6">Crie sua conta para começar</p>
 
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           {/* Nome */}
           <div>
-            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-gray-600 mb-1">Nome</label>
+            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-black mb-1">Nome</label>
 
             <input
               id="UsuarioNome"
               name="UsuarioNome"
               placeholder="Digite o nome completo"
-              className={`w-full p-3 rounded-3xl bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+              className={`w-full p-3 rounded-3xl bg-[#f7f7f7ff] focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                 errors.UsuarioNome ? "ring-2 ring-red-500" : ""
               }`}
               value={form.UsuarioNome}
@@ -168,14 +168,14 @@ export default function RegisterPage() {
 
           {/* E-mail */}
           <div>
-            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-gray-600 mb-1">Email</label>
+            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-black mb-1">Email</label>
 
             <input
               id="UsuarioEmail"
               name="UsuarioEmail"
               placeholder="Digite seu e-mail"
               type="email"
-              className={`w-full p-3 rounded-3xl bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+              className={`w-full p-3 rounded-3xl bg-[#f7f7f7ff] focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                 errors.UsuarioEmail ? "ring-2 ring-red-500" : ""
               }`}
               value={form.UsuarioEmail}
@@ -186,14 +186,14 @@ export default function RegisterPage() {
 
           {/* Senha */}
           <div>
-            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-gray-600 mb-1">Senha</label>
+            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-black mb-1">Senha</label>
 
             <input
               id="UsuarioSenha"
               name="UsuarioSenha"
               placeholder="Crie uma senha"
               type="password"
-              className={`w-full p-3 rounded-3xl bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+              className={`w-full p-3 rounded-3xl bg-[#f7f7f7ff] focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                 errors.UsuarioSenha ? "ring-2 ring-red-500" : ""
               }`}
               value={form.UsuarioSenha}
@@ -205,7 +205,7 @@ export default function RegisterPage() {
           {/* Peso e Altura */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label htmlFor="UsuarioDtNascimento" className="block text-sm text-gray-600 mb-1">Peso</label>
+              <label htmlFor="UsuarioDtNascimento" className="block text-sm text-black mb-1">Peso</label>
 
               <input
                 id="UsuarioPeso"
@@ -214,7 +214,7 @@ export default function RegisterPage() {
                 type="number"
                 step="0.01"
                 min="0"
-                className={`w-full p-3 rounded-3xl bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                className={`w-full p-3 rounded-3xl bg-[#f7f7f7ff] focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                   errors.UsuarioPeso ? "ring-2 ring-red-500" : ""
                 }`}
                 value={form.UsuarioPeso}
@@ -223,7 +223,7 @@ export default function RegisterPage() {
               {errors.UsuarioPeso && <p className="text-red-600 text-sm mt-1">{errors.UsuarioPeso}</p>}
             </div>
             <div>
-              <label htmlFor="UsuarioDtNascimento" className="block text-sm text-gray-600 mb-1">Altura</label>
+              <label htmlFor="UsuarioDtNascimento" className="block text-sm text-black mb-1">Altura</label>
 
               <input
                 id="UsuarioAltura"
@@ -232,7 +232,7 @@ export default function RegisterPage() {
                 type="number"
                 step="0.01"
                 min="0"
-                className={`w-full p-3 rounded-3xl bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                className={`w-full p-3 rounded-3xl bg-[#f7f7f7ff] focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                   errors.UsuarioAltura ? "ring-2 ring-red-500" : ""
                 }`}
                 value={form.UsuarioAltura}
@@ -244,13 +244,13 @@ export default function RegisterPage() {
 
           {/* Data de Nascimento */}
           <div>
-            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-gray-600 mb-1">Data de nascimento</label>
+            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-black mb-1">Data de nascimento</label>
 
             <input
               id="UsuarioDtNascimento"
               name="UsuarioDtNascimento"
               type="date"
-              className={`w-full p-3 rounded-3xl bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+              className={`w-full p-3 rounded-3xl bg-[#f7f7f7ff] focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                 errors.UsuarioDtNascimento ? "ring-2 ring-red-500" : ""
               }`}
               value={form.UsuarioDtNascimento}
@@ -261,14 +261,14 @@ export default function RegisterPage() {
 
           {/* Sexo */}
           <div>
-            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-gray-600 mb-1">Sexo</label>
+            <label htmlFor="UsuarioDtNascimento" className="block text-sm text-black mb-1">Sexo</label>
 
             <select
               id="UsuarioSexo"
               name="UsuarioSexo"
               value={form.UsuarioSexo}
               onChange={handleChange}
-              className={`w-full p-3 rounded-3xl bg-green-100 text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none ${
+              className={`w-full p-3 rounded-3xl bg-[#f7f7f7ff] text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none ${
                 errors.UsuarioSexo ? "ring-2 ring-red-500" : ""
               }`}
             >
@@ -286,7 +286,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={submitting}
-            className={`bg-lime-400 hover:bg-lime-500 transition duration-300 p-3 rounded-3xl text-lg font-medium ${
+            className={`bg-[#5CFF5C] hover:bg-[#40bf5e] transition duration-300 p-3 rounded-3xl text-lg font-medium ${
               submitting ? "opacity-75 cursor-not-allowed" : ""
             }`}
           >

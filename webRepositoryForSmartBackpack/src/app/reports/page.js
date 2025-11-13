@@ -20,9 +20,7 @@ export default function ReportsHomePage() {
         setLoading(true);
         setError("");
 
-        const res = await authFetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/usuarios-mochilas/usuario`
-        );
+        const res = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/usuarios-mochilas/usuario`);
 
         if (!res.ok) {
           const errorData = await res.json();
@@ -61,7 +59,7 @@ export default function ReportsHomePage() {
           <div className="text-red-500 p-4 text-center">
             <p>Erro: {error}</p>
             <button
-              onClick={() => router.push('/backpack')}
+              onClick={() => router.push("/backpack")}
               className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
             >
               Voltar para Mochilas
@@ -78,7 +76,9 @@ export default function ReportsHomePage() {
       <main className="min-h-screen p-8 bg-gray-50 text-black">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold text-center mb-2">Relatórios</h1>
-          <p className="text-gray-600 text-center mb-8">Escolha uma mochila para visualizar seus relatórios</p>
+          <p className="text-gray-600 text-center mb-8">
+            Escolha uma mochila para visualizar seus relatórios
+          </p>
 
           {mochilas.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 ">
@@ -89,10 +89,14 @@ export default function ReportsHomePage() {
                   className="block"
                 >
                   <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 border border-green-100">
-                    <h2 className="text-xl font-semibold text-gray-800">{m.MochilaNome || m.MochilaDescricao}</h2>
-                    <p className="text-gray-600 mt-2">Código: {m.MochilaCodigo}</p>
+                    <h2 className="text-xl font-semibold text-gray-800">
+                      {m.MochilaNome || m.MochilaDescricao}
+                    </h2>
+                    <p className="text-gray-600 mt-2">
+                      Código: {m.MochilaCodigo}
+                    </p>
                     <div className="mt-4 flex justify-end">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-none border-2 hover:bg-green-200 transition duration-500 border-[#2e7d32] text-green-800">
                         Selecionar
                       </span>
                     </div>
@@ -102,7 +106,9 @@ export default function ReportsHomePage() {
             </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-gray-500 mb-4">Nenhuma mochila vinculada ainda.</p>
+              <p className="text-gray-500 mb-4">
+                Nenhuma mochila vinculada ainda.
+              </p>
               <Link href="/backpack" className="text-blue-500 hover:underline">
                 Vincular uma mochila
               </Link>
