@@ -244,8 +244,7 @@ export default function AnnualReportPage({ params }) {
                 <StatCard title="Desvio Padrão (kg)" value={estatisticas.desvioPadrao} />
                 <StatCard title="Assimetria" value={estatisticas.assimetria} />
                 <StatCard title="Curtose" value={estatisticas.curtose} />
-                <StatCard title="P(X > μ) (%)" value={`${estatisticas.probAcimaMedia}%`} />
-                <StatCard title="Regressão Linear" value={estatisticas.regressao?.equacao || "—"} />
+                <StatCard title="Regressão Linear" value={estatisticas.regrLinear || "—"} />
               </div>
             </div>
           ) : (
@@ -254,8 +253,7 @@ export default function AnnualReportPage({ params }) {
             </div>
           )}
 
-          <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 className="text-xl font-semibold mb-4">📊 Média de Peso por Mês</h2>
+          <div>
             {possuiDadosGrafico ? (
               <Chart
                 dados={chartData}

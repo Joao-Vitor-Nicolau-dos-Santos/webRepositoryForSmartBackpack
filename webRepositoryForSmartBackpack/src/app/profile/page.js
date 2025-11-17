@@ -13,7 +13,6 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [userData, setUserData] = useState(null);
-  const [editMode, setEditMode] = useState(false); // Estado para controle de edição
   const [form, setForm] = useState({
     UsuarioNome: "",
     UsuarioEmail: "",
@@ -65,13 +64,6 @@ export default function ProfilePage() {
     fetchUserData();
   }, [authFetch]);
 
-  // --- 2. FUNÇÃO PARA ATIVAR O MODO DE EDIÇÃO ---
-  const handleEditClick = () => {
-    setEditMode(true);
-    setError("");
-    setSuccess("");
-  };
-
   // --- 3. FUNÇÃO PARA SALVAR AS ALTERAÇÕES ---
   const handleSaveClick = async () => {
     setSuccess("");
@@ -111,8 +103,7 @@ export default function ProfilePage() {
       setSuccess("Perfil atualizado com sucesso!");
       // Atualiza o estado local com os dados salvos (opcional, pode ser feito apenas no carregamento inicial)
       setUserData(prev => ({ ...prev, ...payload }));
-      // Sai do modo de edição
-      setEditMode(false);
+
 
     } catch (err) {
       console.error("Erro ao salvar perfil:", err);
@@ -167,183 +158,134 @@ export default function ProfilePage() {
           {success && <p className="text-green-500 mb-4">{success}</p>}
 
           {/* Exibição dos dados ou formulário de edição */}
-          {!editMode ? (
-            // Modo de visualização
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold">Informações Pessoais</h3>
-                <ul className="mt-2 space-y-2">
-                  <li><strong>Nome:</strong> {userData?.UsuarioNome}</li>
-                  <li><strong>E-mail:</strong> {userData?.UsuarioEmail}</li>
-                  <li><strong>Data de Nascimento:</strong> {userData?.UsuarioDtNascimento ? new Date(userData.UsuarioDtNascimento).toLocaleDateString('pt-BR') : '-'}</li>
-                  <li><strong>Sexo:</strong> {userData?.UsuarioSexo || '-'}</li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold">Dados Físicos</h3>
-                <ul className="mt-2 space-y-2">
-                  <li><strong>Peso:</strong> {userData?.UsuarioPeso ? `${userData.UsuarioPeso} kg` : '-'}</li>
-                  <li><strong>Altura:</strong> {userData?.UsuarioAltura ? `${userData.UsuarioAltura} m` : '-'}</li>
-                  <li><strong>Peso Máximo Permitido:</strong> {userData?.UsuarioPesoMaximoPorcentagem ? `${userData.UsuarioPesoMaximoPorcentagem}% do seu peso` : '-'}</li>
-                </ul>
-              </div>
-
-              <div className="flex justify-center mt-6">
-                <button
-                  onClick={handleEditClick}
-                  className="px-6 py-2 border-[#5CFF5C] border-2 hover:scale(1.02) hover:bg-[#40bf5e] transition duration-300 text-green-900 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                >
-                  Editar Perfil
-                </button>
-              </div>
+          <form onSubmit={(e) => { e.preventDefault(); handleSaveClick(); }} className="space-y-4">
+            <div>
+              <label htmlFor="UsuarioNome" className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                Nome
+              </label>
+              <input
+                id="UsuarioNome"
+                name="UsuarioNome"
+                type="text"
+                value={form.UsuarioNome}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                required
+              />
             </div>
-          ) : (
-            // Modo de edição
-            <form onSubmit={(e) => { e.preventDefault(); handleSaveClick(); }} className="space-y-4">
+
+            <div>
+              <label htmlFor="UsuarioEmail" className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                E-mail
+              </label>
+              <input
+                id="UsuarioEmail"
+                name="UsuarioEmail"
+                type="email"
+                value={form.UsuarioEmail}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="UsuarioNome" className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome
+                <label htmlFor="UsuarioPeso" className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                  Peso (kg)
                 </label>
                 <input
-                  id="UsuarioNome"
-                  name="UsuarioNome"
-                  type="text"
-                  value={form.UsuarioNome}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="UsuarioEmail" className="block text-sm font-medium text-gray-700 mb-1">
-                  E-mail
-                </label>
-                <input
-                  id="UsuarioEmail"
-                  name="UsuarioEmail"
-                  type="email"
-                  value={form.UsuarioEmail}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="UsuarioPeso" className="block text-sm font-medium text-gray-700 mb-1">
-                    Peso (kg)
-                  </label>
-                  <input
-                    id="UsuarioPeso"
-                    name="UsuarioPeso"
-                    type="number"
-                    step="0.01"
-                    value={form.UsuarioPeso}
-                    onChange={handleChange}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="UsuarioAltura" className="block text-sm font-medium text-gray-700 mb-1">
-                    Altura (m)
-                  </label>
-                  <input
-                    id="UsuarioAltura"
-                    name="UsuarioAltura"
-                    type="number"
-                    step="0.01"
-                    value={form.UsuarioAltura}
-                    onChange={handleChange}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="UsuarioDtNascimento" className="block text-sm font-medium text-gray-700 mb-1">
-                  Data de Nascimento
-                </label>
-                <input
-                  id="UsuarioDtNascimento"
-                  name="UsuarioDtNascimento"
-                  type="date"
-                  value={form.UsuarioDtNascimento}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="UsuarioSexo" className="block text-sm font-medium text-gray-700 mb-1">
-                  Sexo
-                </label>
-                <select
-                  id="UsuarioSexo"
-                  name="UsuarioSexo"
-                  value={form.UsuarioSexo}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                >
-                  <option value="">Selecione</option>
-                  <option value="Masculino">Masculino</option>
-                  <option value="Feminino">Feminino</option>
-                  <option value="Outro">Outro</option>
-                  <option value="Prefiro não dizer">Prefiro não dizer</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="UsuarioPesoMaximoPorcentagem" className="block text-sm font-medium text-gray-700 mb-1">
-                  Peso Máximo Permitido (% do seu peso)
-                </label>
-                <input
-                  id="UsuarioPesoMaximoPorcentagem"
-                  name="UsuarioPesoMaximoPorcentagem"
+                  id="UsuarioPeso"
+                  name="UsuarioPeso"
                   type="number"
                   step="0.01"
-                  min="1"
-                  max="100"
-                  value={form.UsuarioPesoMaximoPorcentagem}
+                  value={form.UsuarioPeso}
                   onChange={handleChange}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-                  placeholder="Ex: 10 (significa 10% do seu peso)"
                 />
               </div>
-
-              <div className="flex justify-center mt-6 space-x-4">
-                <button
-                  type="submit"
-                  className={`px-6 py-2 rounded-md text-white font-medium ${
-                    success ? "bg-green-500" : "bg-green-500 hover:bg-green-600"
-                  }`}
-                >
-                  Salvar Alterações
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditMode(false)}
-                  className="px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
-                >
-                  Cancelar
-                </button>
+              <div>
+                <label htmlFor="UsuarioAltura" className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                  Altura (m)
+                </label>
+                <input
+                  id="UsuarioAltura"
+                  name="UsuarioAltura"
+                  type="number"
+                  step="0.01"
+                  value={form.UsuarioAltura}
+                  onChange={handleChange}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                />
               </div>
-            </form>
-          )}
+            </div>
 
-          {/* Seção de Logout */}
-          <div className="mt-2 border-t border-gray-200">
-            <div className="flex justify-center">
+            <div>
+              <label htmlFor="UsuarioDtNascimento" className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                Data de Nascimento
+              </label>
+              <input
+                id="UsuarioDtNascimento"
+                name="UsuarioDtNascimento"
+                type="date"
+                value={form.UsuarioDtNascimento}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="UsuarioSexo" className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                Sexo
+              </label>
+              <select
+                id="UsuarioSexo"
+                name="UsuarioSexo"
+                value={form.UsuarioSexo}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+              >
+                <option value="">Selecione</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Feminino">Feminino</option>
+                <option value="Outro">Outro</option>
+                <option value="Prefiro não dizer">Prefiro não dizer</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="UsuarioPesoMaximoPorcentagem" className="block text-sm font-medium text-gray-700 mb-1 text-left">
+                Peso Máximo Permitido (% do seu peso)
+              </label>
+              <input
+                id="UsuarioPesoMaximoPorcentagem"
+                name="UsuarioPesoMaximoPorcentagem"
+                type="number"
+                step="0.01"
+                min="1"
+                max="100"
+                value={form.UsuarioPesoMaximoPorcentagem}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                placeholder="Ex: 10 (significa 10% do seu peso)"
+              />
+            </div>
+
+            <div className="flex justify-center mt-6 space-x-4 w-full">
+              <button
+                type="submit"
+                className={`px-6 py-2 rounded-md text-white font-medium w-1/2 ${success ? "bg-green-500" : "bg-green-500 hover:bg-green-600"}`}
+              >
+                Salvar Alterações
+              </button>
               <button
                 onClick={logout}
-                className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                className="px-6 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 w-1/2"
               >
-                Sair
+                Sair da Conta
               </button>
             </div>
-          </div>
+          </form>
         </div>
       </main>
     </ProtectedRoute>

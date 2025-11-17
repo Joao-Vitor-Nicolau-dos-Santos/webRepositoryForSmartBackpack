@@ -85,7 +85,7 @@ export default function ReportsHomePage() {
               {mochilas.map((m) => (
                 <Link
                   key={m.MochilaCodigo}
-                  href={`/reports/${m.MochilaCodigo}`}
+                  href={`/reports/${m.MochilaCodigo}?nome=${encodeURIComponent(m.MochilaNome || m.MochilaDescricao)}`}
                   className="block"
                 >
                   <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 border border-green-100">
@@ -93,13 +93,8 @@ export default function ReportsHomePage() {
                       {m.MochilaNome || m.MochilaDescricao}
                     </h2>
                     <p className="text-gray-600 mt-2">
-                      Código: {m.MochilaCodigo}
+                      Código: ({m.MochilaCodigo})
                     </p>
-                    <div className="mt-4 flex justify-end">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-none border-2 hover:bg-green-200 transition duration-500 border-[#2e7d32] text-green-800">
-                        Selecionar
-                      </span>
-                    </div>
                   </div>
                 </Link>
               ))}

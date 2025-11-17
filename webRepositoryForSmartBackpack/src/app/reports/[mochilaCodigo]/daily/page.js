@@ -5,11 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { FiArrowLeft } from "react-icons/fi";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useAuth } from "@/app/hooks/useAuth"; 
-import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute"; 
-import Header from "@/components/Header/Header"; 
-import Chart from "@/components/Chart/Chart"; 
+import { useAuth } from "@/app/hooks/useAuth";
+import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute";
+import Header from "@/components/Header/Header";
+import Chart from "@/components/Chart/Chart";
 import StatCard from "@/components/StatCard/StatCard";
+import ComparisonChart from "@/components/ComparisonChart/ComparisonChart"; // Adicione esta linha
 
 export default function DailyReportPage() {
   const router = useRouter();
@@ -21,7 +22,13 @@ export default function DailyReportPage() {
   const [error, setError] = useState("");
   const [medicoes, setMedicoes] = useState([]);
   const [estatisticas, setEstatisticas] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date()); // Data inicial: Hoje
+  const [chartData, setChartData] = useState(null);
+  const [comparisonChartData, setComparisonChartData] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const hoje = new Date();
+    // formata para yyyy-MM-dd manualmente, sem timezone
+    return hoje.toISOString().split("T")[0];
+  })
   const [expandedHour, setExpandedHour] = useState(null);
   const [expandedSubHour, setExpandedSubHour] = useState(null);
   const [statsExpanded, setStatsExpanded] = useState(true); // Controle para o bloco de estatísticas
@@ -99,6 +106,13 @@ export default function DailyReportPage() {
   };
   // --- FIM DA FUNÇÃO ---
 
+  const formatToApiDate = (d) => {
+    if (!d) return "";
+    if (typeof d === "string") return d; // já no formato yyyy-MM-dd
+    // se vier Date, converte
+    return format(d, "yyyy-MM-dd", { locale: ptBR });
+  };
+
   // --- FUNÇÃO PARA BUSCAR O RELATÓRIO ---
   const buscarRelatorio = async (data, codigo) => {
     try {
@@ -106,9 +120,12 @@ export default function DailyReportPage() {
       setError("");
       setMedicoes([]);
       setEstatisticas(null);
+      setChartData(null);
+      setComparisonChartData(null);
 
+      const dataStr = formatToApiDate(data);
       const resposta = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/medicoes/dia/${format(data, "yyyy-MM-dd", { locale: ptBR })}/${codigo}`
+        `${process.env.NEXT_PUBLIC_API_URL}/medicoes/dia/${dataStr}/${codigo}`
       );
 
       if (!resposta.ok) {
@@ -119,7 +136,12 @@ export default function DailyReportPage() {
       const dados = await resposta.json();
       setMedicoes(dados);
 
-      // --- PROCESSAMENTO DOS DADOS PARA O GRÁFICO E ESTATÍSTICAS ---
+      if (dados.length === 0) {
+        setError("Nenhuma medição encontrada para esta data.");
+        return;
+      }
+
+      // Calcular estatísticas (mantenha sua lógica original)
       const mapaHoraMinuto = {};
       dados.forEach((item) => {
         const d = new Date(item.MedicaoData);
@@ -168,10 +190,70 @@ export default function DailyReportPage() {
   // --- EFEITO PARA CARREGAR OS DADOS AO MONTAR ---
   useEffect(() => {
     if (mochilaCodigo) {
-      buscarRelatorio(selectedDate, mochilaCodigo);
+      buscarRelatorio(selectedDate, mochilaCodigo); // passar string
     }
-  }, [selectedDate, mochilaCodigo]); // Re-executa se a data ou o código da mochila mudarem
+  }, [mochilaCodigo]); // deixa apenas mochilaCodigo, como já está
   // --- FIM DO EFEITO ---
+
+  // --- EFEITO PARA PROCESSAR GRÁFICOS QUANDO AS MEDIÇÕES MUDAREM ---
+  useEffect(() => {
+    if (medicoes.length > 0) {
+
+      const grupos = agruparPorIntervalo();
+      const horas = Array.from({ length: 8 }, (_, i) => `${(i * 3).toString().padStart(2, "0")}:00`);
+
+      // Dados para o primeiro gráfico (total) - FORMATO RECHARTS
+      const dadosTotal = horas.map((h, i) => {
+        const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
+        const med = grupos[key];
+        if (!med || med.length === 0) return { name: h, peso: 0 };
+
+        const esquerda = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("esquerda"));
+        const direita = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("direita"));
+
+        const mediaEsq = esquerda.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (esquerda.length || 1);
+        const mediaDir = direita.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (direita.length || 1);
+
+        const total = mediaEsq + mediaDir;
+        return {
+          name: h,
+          peso: parseFloat(total.toFixed(2))
+        };
+      });
+
+      // Dados para o gráfico de comparação - FORMATO RECHARTS
+      const dadosComparacao = horas.map((h, i) => {
+        const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
+        const med = grupos[key];
+
+        const baseData = { name: h };
+
+        if (!med || med.length === 0) {
+          return {
+            ...baseData,
+            esquerda: 0,
+            direita: 0
+          };
+        }
+
+        const esquerda = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("esquerda"));
+        const direita = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("direita"));
+
+        const mediaEsq = esquerda.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (esquerda.length || 1);
+        const mediaDir = direita.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (direita.length || 1);
+
+        return {
+          ...baseData,
+          esquerda: parseFloat(mediaEsq.toFixed(2)),
+          direita: parseFloat(mediaDir.toFixed(2))
+        };
+      });
+
+      // Configurar dados para os gráficos
+      setChartData(dadosTotal);
+      setComparisonChartData(dadosComparacao);
+    }
+  }, [medicoes]);
 
   // --- FUNÇÃO PARA AGRUPAR POR INTERVALO ---
   const agruparPorIntervalo = () => {
@@ -206,6 +288,7 @@ export default function DailyReportPage() {
     return parseFloat(total.toFixed(2));
   });
 
+  /*
   const chartData = {
     labels: horas,
     datasets: [
@@ -216,25 +299,27 @@ export default function DailyReportPage() {
       },
     ],
   };
+  */
 
   if (loading) {
     return (
       <ProtectedRoute>
         <Header />
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <p>Carregando relatório diário...</p>
+        <div className="min-h-screen flex items-center justify-center bg-gray-200">
+          <p className="text-gray-800">Carregando relatório diário...</p>
         </div>
       </ProtectedRoute>
     );
   }
 
+  /*
   if (error) {
     return (
       <ProtectedRoute>
         <Header />
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-red-500 p-4 text-center">
-            <p>Erro: {error}</p>
+            <p>{error}</p>
             <button
               onClick={() => router.push(`/reports/${mochilaCodigo}`)}
               className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
@@ -246,12 +331,13 @@ export default function DailyReportPage() {
       </ProtectedRoute>
     );
   }
+  */
 
   return (
     <ProtectedRoute>
       <Header />
       <main className="min-h-screen p-8 bg-gray-50 text-black">
-        <div className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+        <div className="max-w-6xl mx-auto">
           {/* Cabeçalho com botão de voltar */}
           <div className="flex items-center mb-6">
             <button
@@ -266,195 +352,282 @@ export default function DailyReportPage() {
               <p className="text-gray-600">Mochila: {mochilaCodigo}</p>
             </div>
           </div>
+          <div className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow-lg mb-8">
+            <div className="flex flex-col sm:flex-row items-end gap-4">
 
-          {/* Seletor de Data */}
-          <div className="mb-6 p-4 bg-gray-100 rounded-lg">
-            <label htmlFor="dataSelecionada" className="block text-sm font-medium text-gray-700 mb-2">
-              Selecione a Data
-            </label>
-            <input
-              id="dataSelecionada"
-              type="date"
-              value={format(selectedDate, "yyyy-MM-dd")}
-              onChange={(e) => setSelectedDate(new Date(e.target.value))}
-              className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          {/* Botão para buscar relatório (opcional, pois já atualiza ao mudar a data) */}
-          {/* <button
-            onClick={() => buscarRelatorio(selectedDate, mochilaCodigo)}
-            className="mb-6 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-          >
-            Buscar Relatório
-          </button> */}
-
-          {/* --- BLOCO DE ESTATÍSTICAS --- */}
-          <div className="mb-8 bg-gray-50 p-4 rounded-xl">
-            <div
-              className="flex justify-between items-center cursor-pointer"
-              onClick={() => setStatsExpanded(!statsExpanded)}
-            >
-              <h3 className="text-xl font-bold">📈 Indicadores Estatísticos</h3>
-              <span>{statsExpanded ? "▼" : "▶"}</span>
-            </div>
-
-            {statsExpanded && estatisticas && (
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard title="Total Medições" value={estatisticas.totalMedicoes} />
-                <StatCard title="Total Peso" value={`${estatisticas.totalPeso} kg`} />
-                <StatCard title="Média (kg)" value={estatisticas.media} />
-                <StatCard title="Mediana (kg)" value={estatisticas.mediana} />
-                <StatCard title="Moda (kg)" value={estatisticas.moda} />
-                <StatCard title="Desvio Padrão (kg)" value={estatisticas.desvioPadrao} />
-                <StatCard title="Assimetria" value={estatisticas.assimetria} />
-                <StatCard title="Curtose" value={estatisticas.curtose} />
-                <StatCard title="Regressão Linear" value={estatisticas.regressao} />
+              {/* Seletor de Data - Largura reduzida */}
+              <div className="w-full sm:w-auto">
+                <label htmlFor="dataSelecionada" className="block text-sm font-medium text-gray-700 mb-2">
+                  Selecione a Data
+                </label>
+                <input
+                  id="dataSelecionada"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
-            )}
-            {statsExpanded && !estatisticas && (
-              <p className="text-gray-500 text-center mt-2">Nenhum dado disponível para cálculo estatístico.</p>
-            )}
-          </div>
-          {/* --- FIM DO BLOCO DE ESTATÍSTICAS --- */}
 
-          {/* Gráfico */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold mb-4">📊 Média de Peso por Intervalo (3h)</h3>
-            <Chart dados={chartData.datasets[0].data} labels={chartData.labels} titulo="Peso Médio por Intervalo" />
-          </div>
-
-          {/* Gráfico de Comparação Esquerda x Direita */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold mb-4">⚖️ Comparativo Esquerda x Direita (3h)</h3>
-            <Chart
-              dados={[
-                {
-                  data: horas.map((h, i) => {
-                    const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
-                    const med = grupos[key];
-                    if (!med || med.length === 0) return 0;
-                    const esquerda = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("esquerda"));
-                    const mediaEsq = esquerda.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (esquerda.length || 1);
-                    return parseFloat(mediaEsq.toFixed(2));
-                  }),
-                  color: () => "#F46334",
-                  strokeWidth: 2,
-                },
-                {
-                  data: horas.map((h, i) => {
-                    const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
-                    const med = grupos[key];
-                    if (!med || med.length === 0) return 0;
-                    const direita = med.filter((m) => m.MedicaoLocal?.toLowerCase().includes("direita"));
-                    const mediaDir = direita.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (direita.length || 1);
-                    return parseFloat(mediaDir.toFixed(2));
-                  }),
-                  color: () => "#36985B",
-                  strokeWidth: 2,
-                },
-              ]}
-              labels={horas}
-              titulo="Comparativo de Peso por Intervalo"
-            />
+              {/* Botão com ícone à esquerda */}
+              <button
+                onClick={() => buscarRelatorio(selectedDate, mochilaCodigo)}
+                className="bg-green-500 text-white px-6 py-3 rounded-md hover:bg-green-600 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Buscar Relatório
+              </button>
+            </div>
+            {error ? (
+                <div>
+                  <br></br>
+                  <p className="font-medium">{error}</p>
+                </div>
+              ) : (
+                <></>
+              )}
           </div>
 
-          {/* Detalhes por Intervalo */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Detalhes das Medições (3 em 3 horas)</h3>
-            {horas.map((h, i) => {
-              const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
-              const itens = grupos[key];
 
-              if (!itens || itens.length === 0) return null;
+          {/* Se houver erro, exibe somente a mensagem e interrompe o restante */}
+          {error ? (
+            <div></div>
+          ) : (
+            <>
 
-              const subGrupos = {};
-              itens.forEach((item) => {
-                const hora = new Date(item.MedicaoData).getHours().toString().padStart(2, "0");
-                if (!subGrupos[hora]) subGrupos[hora] = [];
-                subGrupos[hora].push(item);
-              });
-
-              return (
-                <div key={key} className="border rounded-lg overflow-hidden">
+              {/* --- BLOCO DE ESTATÍSTICAS --- */}
+              <div className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow-lg mb-8">
+                <div className="mb-8 bg-gray-50 p-4 rounded-xl">
                   <div
-                    className={`p-4 cursor-pointer flex justify-between items-center ${
-                      expandedHour === key ? "bg-gray-100" : "bg-white"
-                    }`}
-                    onClick={() => setExpandedHour(expandedHour === key ? null : key)}
+                    className="flex justify-between items-center cursor-pointer"
+                    onClick={() => setStatsExpanded(!statsExpanded)}
                   >
-                    <span>{key}</span>
-                    <span>{expandedHour === key ? "▼" : "▶"}</span>
+                    <h3 className="text-xl font-bold">📈 Indicadores Estatísticos</h3>
+                    <span>{statsExpanded ? "▼" : "▶"}</span>
                   </div>
 
-                  {expandedHour === key && (
-                    <div className="bg-gray-50 p-2">
-                      {Object.entries(subGrupos).map(([subHora, lista]) => {
-                        const mediasHora = lista.map((item) => ({
-                          hora: new Date(item.MedicaoData).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-                          pesoEsq: 0, // Será calculado abaixo
-                          pesoDir: 0, // Será calculado abaixo
-                          total: 0,   // Será calculado abaixo
-                          inclinacao: "",
-                        }));
-
-                        // Agrupar por lado e calcular médias
-                        const esquerda = lista.filter((v) => v.MedicaoLocal?.toLowerCase().includes("esquerda"));
-                        const direita = lista.filter((v) => v.MedicaoLocal?.toLowerCase().includes("direita"));
-
-                        const pesoEsq = esquerda.reduce((acc, v) => acc + Number(v.MedicaoPeso || 0), 0) / (esquerda.length || 1);
-                        const pesoDir = direita.reduce((acc, v) => acc + Number(v.MedicaoPeso || 0), 0) / (direita.length || 1);
-                        const total = pesoEsq + pesoDir;
-                        const inclinacao = pesoEsq === pesoDir ? "equilibrado" : pesoEsq > pesoDir ? "esquerda" : "direita";
-
-                        const dadosProcessados = mediasHora.map((m) => ({
-                          ...m,
-                          pesoEsq: roundTo2(pesoEsq),
-                          pesoDir: roundTo2(pesoDir),
-                          total: roundTo2(total),
-                          inclinacao,
-                        }));
-
-                        return (
-                          <div key={subHora}>
-                            <div
-                              className={`p-3 cursor-pointer flex justify-between items-center ${
-                                expandedSubHour === subHora ? "bg-gray-200" : "bg-gray-100"
-                              }`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedSubHour(expandedSubHour === subHora ? null : subHora);
-                              }}
-                            >
-                              <span>{subHora}:00</span>
-                              <span>{expandedSubHour === subHora ? "▼" : "▶"}</span>
-                            </div>
-
-                            {expandedSubHour === subHora &&
-                              dadosProcessados.map((dado, idx) => (
-                                <div
-                                  key={idx}
-                                  className={`p-3 m-2 rounded-lg ${
-                                    dado.total > 10 ? "bg-red-100 border-red-300" : "bg-green-100 border-green-300" // Exemplo de cor baseado em peso (ajuste conforme necessário)
-                                  } border`}
-                                >
-                                  <p>Hora: {dado.hora}</p>
-                                  <p>Peso Esquerdo: {dado.pesoEsq} kg</p>
-                                  <p>Peso Direito: {dado.pesoDir} kg</p>
-                                  <p>Total: {dado.total} kg</p>
-                                  <p>Inclinação: {dado.inclinacao}</p>
-                                  {dado.total > 10 && <p className="text-red-600"> Peso acima do limite!</p>} {/* Exemplo de alerta */}
-                                </div>
-                              ))}
-                          </div>
-                        );
-                      })}
+                  {statsExpanded && estatisticas && (
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <StatCard title="Total Medições" value={estatisticas.totalMedicoes} />
+                      <StatCard title="Total Peso" value={`${estatisticas.totalPeso} kg`} />
+                      <StatCard title="Média (kg)" value={estatisticas.media} />
+                      <StatCard title="Mediana (kg)" value={estatisticas.mediana} />
+                      <StatCard title="Moda (kg)" value={estatisticas.moda} />
+                      <StatCard title="Desvio Padrão (kg)" value={estatisticas.desvioPadrao} />
+                      <StatCard title="Assimetria" value={estatisticas.assimetria} />
+                      <StatCard title="Curtose" value={estatisticas.curtose} />
+                      <StatCard title="Regressão Linear" value={estatisticas.regressao} />
                     </div>
                   )}
+                  {statsExpanded && !estatisticas && (
+                    <p className="text-gray-500 text-center mt-2">Nenhum dado disponível para cálculo estatístico.</p>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+              {/* --- FIM DO BLOCO DE ESTATÍSTICAS --- */}
+
+              {/* Gráfico Principal */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold mb-4">📊 Média de Peso por Intervalo (3h)</h3>
+                {chartData && chartData.some(item => item.peso > 0) ? (
+                  <Chart
+                    dados={chartData}
+                    titulo="Peso Médio por Intervalo"
+                  />
+                ) : (
+                  <div className="bg-gray-100 p-8 rounded-lg text-center">
+                    <p className="text-gray-500">Nenhum dado disponível para o gráfico principal.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Gráfico de Comparação - PRECISAMOS DE UM COMPONENTE ESPECÍFICO */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold mb-4">⚖️ Comparativo Esquerda x Direita (3h)</h3>
+                {comparisonChartData && comparisonChartData.some(item => item.esquerda > 0 || item.direita > 0) ? (
+                  <ComparisonChart
+                    dados={comparisonChartData}
+                    titulo="Comparativo de Peso por Intervalo"
+                  />
+                ) : (
+                  <div className="bg-gray-100 p-8 rounded-lg text-center">
+                    <p className="text-gray-500">Nenhum dado disponível para o gráfico comparativo.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Detalhes por Intervalo */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Detalhes das Medições (3 em 3 horas)</h3>
+                {horas.map((h, i) => {
+                  const key = `${(i * 3).toString().padStart(2, "0")}:00 - ${((i + 1) * 3).toString().padStart(2, "0")}:00`;
+                  const itens = grupos[key];
+
+                  if (!itens || itens.length === 0) return null;
+
+                  const subGrupos = {};
+                  itens.forEach((item) => {
+                    const hora = new Date(item.MedicaoData).getHours().toString().padStart(2, "0");
+                    if (!subGrupos[hora]) subGrupos[hora] = [];
+                    subGrupos[hora].push(item);
+                  });
+
+                  return (
+                    <div key={key} className="mb-4 bg-white rounded-lg shadow-md overflow-hidden">
+                      <div
+                        className={`p-4 cursor-pointer flex justify-between items-center ${expandedHour === key ? "bg-gray-100" : "bg-white"
+                          }`}
+                        onClick={() => setExpandedHour(expandedHour === key ? null : key)}
+                      >
+                        <span>{key}</span>
+                        <span>{expandedHour === key ? "▼" : "▶"}</span>
+                      </div>
+
+                      {expandedHour === key && (
+                        <div className="bg-gray-50 p-4">
+                          {/* 🔹 CORREÇÃO 1: Ordenar as horas */}
+                          {Object.entries(subGrupos)
+                            .sort(([horaA], [horaB]) => horaA.localeCompare(horaB)) // Ordena as horas
+                            .map(([subHora, lista]) => {
+
+                              // 🔹 CORREÇÃO 2: Agrupar por minuto para calcular esquerda + direita juntas
+                              const minutosAgrupados = {};
+
+                              lista.forEach((item) => {
+                                const data = new Date(item.MedicaoData);
+                                const minuto = String(data.getMinutes()).padStart(2, "0");
+                                const minutoKey = `${subHora}:${minuto}`;
+
+                                if (!minutosAgrupados[minutoKey]) {
+                                  minutosAgrupados[minutoKey] = {
+                                    horaMinuto: `${subHora}:${minuto}`,
+                                    esquerda: [],
+                                    direita: []
+                                  };
+                                }
+
+                                const local = item.MedicaoLocal?.toLowerCase();
+                                const peso = Number(item.MedicaoPeso || 0);
+
+                                if (local.includes("esquerda")) {
+                                  minutosAgrupados[minutoKey].esquerda.push(peso);
+                                } else if (local.includes("direita")) {
+                                  minutosAgrupados[minutoKey].direita.push(peso);
+                                }
+                              });
+
+                              return (
+                                <div key={subHora} className="mb-3">
+                                  {/* Cabeçalho da Hora */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedSubHour(expandedSubHour === subHora ? null : subHora);
+                                    }}
+                                    className={`w-full flex justify-between items-center p-2 text-left hover:bg-gray-100 transition-colors rounded ${expandedSubHour === subHora ? 'bg-gray-100' : 'bg-white'
+                                      }`}
+                                  >
+                                    <span className="font-medium text-gray-700">
+                                      {subHora}:00
+                                    </span>
+                                    <span className="text-gray-500">
+                                      {expandedSubHour === subHora ? '▼' : '▶'}
+                                    </span>
+                                  </button>
+
+                                  {/* Detalhes dos Minutos */}
+                                  {expandedSubHour === subHora && (
+                                    <div className="mt-2 space-y-2">
+                                      {/* 🔹 CORREÇÃO 3: Ordenar os minutos e processar agrupado */}
+                                      {Object.values(minutosAgrupados)
+                                        .sort((a, b) => a.horaMinuto.localeCompare(b.horaMinuto)) // Ordena minutos
+                                        .map((minutoData, index) => {
+
+                                          // Calcular médias para o minuto
+                                          const avgLeft = minutoData.esquerda.length > 0
+                                            ? minutoData.esquerda.reduce((acc, peso) => acc + peso, 0) / minutoData.esquerda.length
+                                            : 0;
+
+                                          const avgRight = minutoData.direita.length > 0
+                                            ? minutoData.direita.reduce((acc, peso) => acc + peso, 0) / minutoData.direita.length
+                                            : 0;
+
+                                          const total = avgLeft + avgRight;
+                                          const isAlert = total > 10;
+
+                                          // Calcular equilíbrio
+                                          const diferenca = Math.abs(avgLeft - avgRight);
+                                          const maiorPeso = Math.max(avgLeft, avgRight);
+                                          const percentual = maiorPeso > 0 ? (diferenca / maiorPeso) * 100 : 0;
+
+                                          return (
+                                            <div
+                                              key={index}
+                                              className={`p-3 rounded-lg border ${isAlert
+                                                ? 'bg-red-50 border-red-200'
+                                                : 'bg-white border-gray-200'
+                                                }`}
+                                            >
+                                              <div className="flex justify-between items-start mb-2">
+                                                <span className="font-semibold text-blue-600">
+                                                  {minutoData.horaMinuto}
+                                                </span>
+                                                {/* Indicador de Equilíbrio */}
+                                                <div className="flex items-center">
+                                                  <div className={`w-16 h-2 bg-gray-200 rounded-full overflow-hidden`}>
+                                                    <div
+                                                      className={`h-full ${percentual > 5
+                                                        ? 'bg-red-500'
+                                                        : 'bg-green-500'
+                                                        }`}
+                                                      style={{
+                                                        width: `${Math.min(percentual, 100)}%`,
+                                                        marginLeft: avgLeft > avgRight ? '0' : 'auto'
+                                                      }}
+                                                    ></div>
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              <div className="grid grid-cols-2 gap-2 mb-2">
+                                                <div className="text-sm">
+                                                  <span className="font-medium">Esquerda:</span>{' '}
+                                                  {avgLeft.toFixed(2)} kg
+                                                </div>
+                                                <div className="text-sm">
+                                                  <span className="font-medium">Direita:</span>{' '}
+                                                  {avgRight.toFixed(2)} kg
+                                                </div>
+                                              </div>
+
+                                              <div className="flex justify-between items-center">
+                                                <span className="font-semibold">
+                                                  Total: {total.toFixed(2)} kg
+                                                </span>
+                                                {isAlert && (
+                                                  <span className="text-red-600 font-semibold text-sm">
+                                                    ⚠️ Peso Excedido!
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </main>
     </ProtectedRoute>

@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { FiArrowLeft } from "react-icons/fi";
-import { format } from "date-fns";
+import { useAuth } from "@/app/hooks/useAuth";
 import { ptBR } from "date-fns/locale";
-import { useAuth } from "@/app/hooks/useAuth"; // Certifique-se do caminho correto
-import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute"; // Certifique-se do caminho correto
-import Header from "@/components/Header/Header"; // Certifique-se do caminho correto
-import Chart from "@/components/Chart/Chart"; // Certifique-se de que o componente Chart aceite os dados corretamente
-import StatCard from "@/components/StatCard/StatCard"; // Certifique-se de que o componente StatCard esteja pronto
+import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute";
+import Header from "@/components/Header/Header";
+import Chart from "@/components/Chart/Chart";
+import StatCard from "@/components/StatCard/StatCard";
+import ComparisonChart from "@/components/ComparisonChart/ComparisonChart";
 
 // --- FUNÇÃO AUXILIAR PARA ARREDONDAR PARA 2 CASAS DECIMAIS ---
 function roundTo2(num) {
@@ -17,14 +18,13 @@ function roundTo2(num) {
 }
 // --- FIM DA FUNÇÃO AUXILIAR ---
 
-export default function MonthlyReportPage() {
+export default function MonthlyReportPage({ params }) {
   const router = useRouter();
-  const params = useParams();
   const { authFetch } = useAuth();
 
-  // Use React.use para resolver a Promise `params` (conforme o aviso anterior)
-  // const resolvedParams = React.use(params);
-  const { mochilaCodigo } = params;
+  // Use React.use para resolver a Promise `params`
+  const resolvedParams = React.use(params);
+  const { mochilaCodigo } = resolvedParams;
 
   // --- Estados ---
   const [loading, setLoading] = useState(true);
@@ -32,59 +32,33 @@ export default function MonthlyReportPage() {
   const [reportData, setReportData] = useState([]); // Dados para a tabela (opcional)
   const [chartData, setChartData] = useState([]); // Dados para o gráfico
   const [estatisticas, setEstatisticas] = useState(null); // Estatísticas calculadas
-  const [dadosProcessados, setDadosProcessados] = useState({
-    dailyAvgs: [],
-    dailyLabels: [],
-    dailyAvgsEsq: [],
-    dailyAvgsDir: [],
-    maiorEsq: null,
-    maiorDir: null,
-    menorEsq: null,
-    menorDir: null,
-    totalMedicoes: 0,
-    mediçõesAcimaLimite: 0,
-    diasComMedicao: 0,
-    pesoMaximoPermitido: 0,
-  });
+  const [maiorMenorMedicao, setMaiorMenorMedicao] = useState(null); // Estatísticas calculadas
+
   // --- Novos estados para selecionar ano e mês ---
   const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0')); // Mês atual (01-12)
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // Ano atual
-  // --- Estado para controle de expansão do bloco de estatísticas ---
-  const [statsExpanded, setStatsExpanded] = useState(true);
-  // --- Fim dos estados ---
 
-  // --- FUNÇÃO PARA CALCULAR ESTATÍSTICAS (opcional, se a API não calcular) ---
-  // Neste exemplo, vamos assumir que a API retorna os dados processados e as estatísticas
-  // Se você quiser calcular no frontend, mantenha a função calcularEstatisticas do seu código anterior
-  // const calcularEstatisticas = (valoresRaw) => { ... };
-  // --- FIM DA FUNÇÃO PARA CALCULAR ESTATÍSTICAS ---
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // Ano atual
+
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // --- Estados ---
+  const [comparisonChartData, setComparisonChartData] = useState([]);
+  // --- Fim dos novos estados ---
 
   // --- FUNÇÃO PARA CARREGAR O RELATÓRIO ---
   const loadReport = async (mochilaCodigo, ano, mes) => {
     try {
+      setSearchLoading(true);
       setLoading(true);
       setError("");
-      setEstatisticas(null); // Limpa estatísticas anteriores
-      setDadosProcessados({
-        dailyAvgs: [],
-        dailyLabels: [],
-        dailyAvgsEsq: [],
-        dailyAvgsDir: [],
-        maiorEsq: null,
-        maiorDir: null,
-        menorEsq: null,
-        menorDir: null,
-        totalMedicoes: 0,
-        mediçõesAcimaLimite: 0,
-        diasComMedicao: 0,
-        pesoMaximoPermitido: 0,
-      });
+      setEstatisticas(null);
+      setChartData([]);
 
-      // --- CONSTRUÇÃO DA URL COM ANO E MÊS ---
+      console.log("📊 Buscando relatório mensal:", { ano, mes, mochilaCodigo });
+
       const res = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/medicoes/mensal/${ano}/${mes}/${mochilaCodigo}`
       );
-      // --- FIM DA CONSTRUÇÃO ---
 
       if (!res.ok) {
         let errorMessage = `Erro ${res.status}`;
@@ -98,106 +72,71 @@ export default function MonthlyReportPage() {
       }
 
       const rawData = await res.json();
-      console.log("[MonthlyReportPage] Dados brutos recebidos da API:", rawData);
+      console.log("📦 Dados recebidos da API:", rawData);
 
-      // --- PROCESSAMENTO DOS DADOS ---
-      // A API deve retornar um objeto com 'estatisticas' e 'dadosProcessados'
-      // Exemplo de estrutura esperada:
-      // {
-      //   "estatisticas": { "media": 2.5, "mediana": 2.4, ... },
-      //   "dadosProcessados": {
-      //     "dailyAvgs": [2.1, 2.3, ...], // Média diária total
-      //     "dailyLabels": ["01", "02", ...], // Dias do mês
-      //     "dailyAvgsEsq": [1.0, 1.1, ...], // Média diária esquerda
-      //     "dailyAvgsDir": [1.1, 1.2, ...], // Média diária direita
-      //     "maiorEsq": { "MedicaoData": "...", "MedicaoPeso": "...", ... },
-      //     ...
-      //   }
-      // }
+      // --- PROCESSAMENTO SIMPLIFICADO - DADOS JÁ VÊM PRONTOS ---
+      if (rawData && rawData.dadosProcessados && rawData.estatisticas) {
+        console.log("✅ Dados já processados pela API");
 
-      if (rawData.estatisticas) {
-        setEstatisticas(rawData.estatisticas);
-      }
-      if (rawData.dadosProcessados) {
-        setDadosProcessados(rawData.dadosProcessados);
-      }
+        // Dados para o gráfico principal (médias diárias totais)
+        const dadosGraficoPrincipal = rawData.dadosProcessados.dailyLabels.map((label, index) => ({
+          name: `Dia ${label}`,
+          peso: rawData.dadosProcessados.dailyAvgs[index],
+          data: `2025-11-${label.padStart(2, '0')}` // Ajuste conforme o mês/ano
+        }));
 
-      // Se a API NÃO retornar dadosProcessados, podemos tentar processar rawData aqui
-      // Mas é melhor que a API já retorne no formato desejado
-      if (!rawData.dadosProcessados && Array.isArray(rawData)) {
-         console.warn("[MonthlyReportPage] API retornou array. Processando no frontend...");
-         // Processamento frontend (similar ao modelo diário, mas adaptado para mês)
-         // Agrupar por dia
-         const gruposPorDia = {};
-         rawData.forEach(item => {
-            const data = new Date(item.MedicaoData);
-            const dia = data.getDate();
-            const chave = `${dia.toString().padStart(2, '0')}`;
-            if (!gruposPorDia[chave]) gruposPorDia[chave] = [];
-            gruposPorDia[chave].push(item);
-         });
+        // Dados para o gráfico de comparação (esquerda vs direita)
+        const dadosGraficoComparacao = rawData.dadosProcessados.dailyLabels.map((label, index) => ({
+          name: `Dia ${label}`,
+          esquerda: rawData.dadosProcessados.dailyAvgsEsq[index],
+          direita: rawData.dadosProcessados.dailyAvgsDir[index]
+        }));
 
-         const mediasPorDia = Object.entries(gruposPorDia).map(([dia, lista]) => {
-            const esquerda = lista.filter(m => m.MedicaoLocal?.toLowerCase().includes("esquerda"));
-            const direita = lista.filter(m => m.MedicaoLocal?.toLowerCase().includes("direita"));
+        console.log("📈 Dados para gráfico principal:", dadosGraficoPrincipal);
+        console.log("⚖️ Dados para gráfico comparação:", dadosGraficoComparacao);
 
-            const mediaEsq = esquerda.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (esquerda.length || 1);
-            const mediaDir = direita.reduce((a, b) => a + Number(b.MedicaoPeso || 0), 0) / (direita.length || 1);
-            const total = mediaEsq + mediaDir;
+        setChartData(dadosGraficoPrincipal);
+        setComparisonChartData(dadosGraficoComparacao);
 
-            return { dia, total: roundTo2(total), esq: roundTo2(mediaEsq), dir: roundTo2(mediaDir) };
-         });
+        // Estatísticas já vêm prontas da API
+        // Adiciona dados extras às estatísticas se necessário
+        const estatisticasCompletas = {
+          ...rawData.estatisticas,
+          diasComMedicao: rawData.dadosProcessados.diasComMedicao,
+          totalMedicoes: rawData.dadosProcessados.totalMedicoes,
+          pesoMaximoPermitido: rawData.dadosProcessados.pesoMaximoPermitido,
+          medicoesAcimaLimite: rawData.dadosProcessados.mediçõesAcimaLimite
+        };
 
-         const labels = mediasPorDia.map(m => m.dia);
-         const avgs = mediasPorDia.map(m => m.total);
-         const avgsEsq = mediasPorDia.map(m => m.esq);
-         const avgsDir = mediasPorDia.map(m => m.dir);
+        // Se você precisa de um estado separado para maior/menor medição
+        const maiorMenorMedicao = {
+          maiorDir: rawData.dadosProcessados.maiorDir,
+          maiorEsq: rawData.dadosProcessados.maiorEsq,
+          menorDir: rawData.dadosProcessados.menorDir,
+          menorEsq: rawData.dadosProcessados.menorEsq
+        };
 
-         // Dados para o gráfico
-         setChartData(labels.map((label, index) => ({
-            name: label,
-            total: avgs[index],
-            esquerda: avgsEsq[index],
-            direita: avgsDir[index]
-         })));
+        setMaiorMenorMedicao(maiorMenorMedicao);
+        setEstatisticas(estatisticasCompletas);
 
-         // Processar estatísticas com base nos totais diários
-         const totais = mediasPorDia.map(m => m.total);
-         const stats = calcularEstatisticas(totais);
-         if (stats) setEstatisticas(stats);
-      } else if (rawData.dadosProcessados) {
-         // Dados já processados pela API
-         const { dailyAvgs, dailyLabels, dailyAvgsEsq, dailyAvgsDir } = rawData.dadosProcessados;
-         setChartData(dailyLabels.map((label, index) => ({
-            name: label,
-            total: dailyAvgs[index],
-            esquerda: dailyAvgsEsq[index],
-            direita: dailyAvgsDir[index]
-         })));
+        // Salvar dados completos se precisar para outras seções
+        setReportData(rawData);
+
+      } else {
+        console.error("❌ Estrutura de dados inesperada da API");
+        throw new Error("Estrutura de dados inválida da API");
       }
 
     } catch (err) {
       console.error("[MonthlyReportPage] Erro ao carregar relatório:", err);
       setError(err.message || "Falha ao carregar o relatório mensal.");
       setChartData([]);
-      setReportData([]);
+      setReportData(null);
       setEstatisticas(null);
-      setDadosProcessados({
-        dailyAvgs: [],
-        dailyLabels: [],
-        dailyAvgsEsq: [],
-        dailyAvgsDir: [],
-        maiorEsq: null,
-        maiorDir: null,
-        menorEsq: null,
-        menorDir: null,
-        totalMedicoes: 0,
-        mediçõesAcimaLimite: 0,
-        diasComMedicao: 0,
-        pesoMaximoPermitido: 0,
-      });
+      setComparisonChartData(null);
     } finally {
       setLoading(false);
+      setSearchLoading(false);
     }
   };
   // --- FIM DA FUNÇÃO loadReport ---
@@ -207,8 +146,7 @@ export default function MonthlyReportPage() {
     if (mochilaCodigo) {
       loadReport(mochilaCodigo, selectedYear, selectedMonth);
     }
-  }, [mochilaCodigo, selectedYear, selectedMonth]);
-  // --- Fim do useEffect ---
+  }, [mochilaCodigo]);
 
   // --- Manipuladores para ano e mês ---
   const handleMonthChange = (e) => {
@@ -225,7 +163,7 @@ export default function MonthlyReportPage() {
       <ProtectedRoute>
         <Header />
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <p>Carregando relatório mensal...</p>
+          <p className="text-gray-800">Carregando relatório mensal...</p>
         </div>
       </ProtectedRoute>
     );
@@ -235,11 +173,11 @@ export default function MonthlyReportPage() {
     return (
       <ProtectedRoute>
         <Header />
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 flex flex-col items-center">
           <div className="text-red-500 p-4 text-center">
             <p>Erro: {error}</p>
             <button
-              onClick={() => router.push(`/reports/${mochilaCodigo}`)} // Volta para as opções de relatório da mochila
+              onClick={() => router.push(`/reports/${mochilaCodigo}`)}
               className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
             >
               Voltar para Opções
@@ -250,29 +188,11 @@ export default function MonthlyReportPage() {
     );
   }
 
-  const {
-    dailyAvgs,
-    dailyLabels,
-    dailyAvgsEsq,
-    dailyAvgsDir,
-    maiorEsq,
-    maiorDir,
-    menorEsq,
-    menorDir,
-    totalMedicoes,
-    mediçõesAcimaLimite,
-    diasComMedicao,
-    pesoMaximoPermitido,
-  } = dadosProcessados;
-
-  // Cálculo do percentual de medições acima do limite (se necessário)
-  const percentualAcimaLimite = totalMedicoes > 0 ? roundTo2((mediçõesAcimaLimite / totalMedicoes) * 100) : 0;
-
   return (
     <ProtectedRoute>
       <Header />
-      <main className="min-h-screen p-6 bg-gray-50 text-black">
-        <div className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+      <main className="min-h-screen p-6 bg-gray-50 text-black flex flex-col ">
+        <div className="max-w-6xl mx-auto">
           {/* Cabeçalho com botão de voltar e título */}
           <div className="flex items-center mb-6">
             <button
@@ -289,157 +209,196 @@ export default function MonthlyReportPage() {
           </div>
 
           {/* Seletores de Ano e Mês */}
-          <div className="mb-6 p-4 bg-gray-100 rounded-lg flex flex-wrap items-center gap-4">
-            <div>
-              <label htmlFor="monthSelector" className="block text-sm font-medium text-gray-700 mb-1">
-                Mês
-              </label>
-              <select
-                id="monthSelector"
-                value={selectedMonth}
-                onChange={handleMonthChange}
-                className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              >
-                {[...Array(12)].map((_, i) => {
-                  const mesNum = i + 1;
-                  const mesStr = mesNum.toString().padStart(2, '0');
-                  const nomeMes = new Date(0, i).toLocaleString('pt-BR', { month: 'long' });
-                  return (
-                    <option key={mesStr} value={mesStr}>
-                      {nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)} ({mesStr})
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="yearSelector" className="block text-sm font-medium text-gray-700 mb-1">
-                Ano
-              </label>
-              <select
-                id="yearSelector"
-                value={selectedYear}
-                onChange={handleYearChange}
-                className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              >
-                {[...Array(5)].map((_, i) => {
-                  const ano = new Date().getFullYear() - 2 + i; // Ex: de 2023 a 2027
-                  return (
-                    <option key={ano} value={ano}>
-                      {ano}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          </div>
-
-          {/* --- SEÇÃO DE ESTATÍSTICAS EXPANSÍVEL --- */}
-          <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-200">
-            <div
-              className="flex justify-between items-center cursor-pointer"
-              onClick={() => setStatsExpanded(!statsExpanded)}
-            >
-              <h2 className="text-xl font-semibold">📈 Indicadores Estatísticos</h2>
-              <span>{statsExpanded ? "▼" : "▶"}</span>
-            </div>
-
-            {statsExpanded && estatisticas && (
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard title="Total Medições" value={estatisticas.totalMedicoes || 0} />
-                <StatCard title="Dias c/ Medição" value={estatisticas.diasComMedicao || 0} />
-                <StatCard title="Média Total (kg)" value={estatisticas.media || "—"} />
-                <StatCard title="Mediana (kg)" value={estatisticas.mediana || "—"} />
-                <StatCard title="Moda (kg)" value={estatisticas.moda || "—"} />
-                <StatCard title="Desvio Padrão (kg)" value={estatisticas.desvioPadrao || "—"} />
-                <StatCard title="Assimetria" value={estatisticas.assimetria || "—"} />
-                <StatCard title="Curtose" value={estatisticas.curtose || "—"} />
-                <StatCard
-                  title="Regressão Linear"
-                  value={
-                    estatisticas.regressao
-                      ? `y = ${estatisticas.regressao.a}x + ${estatisticas.regressao.b}`
-                      : "Não aplicável"
-                  }
-                />
+          <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold mb-4">Selecionar Período</h2>
+            <div className="flex flex-wrap items-end gap-6">
+              <div className="flex-1 min-w-[200px]">
+                <label htmlFor="yearSelector" className="block text-sm font-medium text-gray-700 mb-2">
+                  Ano
+                </label>
+                <select
+                  id="yearSelector"
+                  value={selectedYear}
+                  onChange={handleYearChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                >
+                  {[...Array(10)].map((_, i) => {
+                    const ano = new Date().getFullYear() - 5 + i; // Últimos 5 anos e próximos 4
+                    return (
+                      <option key={ano} value={ano}>
+                        {ano}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
-            )}
-            {statsExpanded && !estatisticas && (
-              <p className="text-gray-500 text-center mt-2">Nenhum dado disponível para cálculo estatístico.</p>
-            )}
+
+              <div className="flex-1 min-w-[200px]">
+                <label htmlFor="monthSelector" className="block text-sm font-medium text-gray-700 mb-2">
+                  Mês
+                </label>
+                <select
+                  id="monthSelector"
+                  value={selectedMonth}
+                  onChange={handleMonthChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                >
+                  <option value="01">Janeiro</option>
+                  <option value="02">Fevereiro</option>
+                  <option value="03">Março</option>
+                  <option value="04">Abril</option>
+                  <option value="05">Maio</option>
+                  <option value="06">Junho</option>
+                  <option value="07">Julho</option>
+                  <option value="08">Agosto</option>
+                  <option value="09">Setembro</option>
+                  <option value="10">Outubro</option>
+                  <option value="11">Novembro</option>
+                  <option value="12">Dezembro</option>
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Período Selecionado
+                </label>
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 font-medium">
+                  {selectedMonth}/{selectedYear}
+                </div>
+              </div>
+
+              {/* Botão para buscar dados manualmente */}
+              <button
+                onClick={() => loadReport(mochilaCodigo, selectedYear, selectedMonth)}
+                disabled={searchLoading}
+                className={`bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center gap-2 ${searchLoading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+              >
+                {searchLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    Buscando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Buscar Relatório
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
+
+          {/* --- SEÇÃO DE ESTATÍSTICAS --- */}
+          {estatisticas ? (
+            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+              <h2 className="text-xl font-semibold mb-4">Indicadores Estatísticos</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <StatCard title="Total Medições" value={estatisticas.totalMedicoes} />
+                <StatCard title="Dias c/ Medições" value={estatisticas.diasComMedicao} />
+                <StatCard title="Média (kg)" value={estatisticas.media} />
+                <StatCard title="Mediana (kg)" value={estatisticas.mediana} />
+                <StatCard title="Moda (kg)" value={estatisticas.moda} />
+                <StatCard title="Desvio Padrão (kg)" value={estatisticas.desvioPadrao} />
+                <StatCard title="Assimetria" value={estatisticas.assimetria} />
+                <StatCard title="Curtose" value={estatisticas.curtose} />
+                <StatCard title="Regressão Linear" value={`y = ${estatisticas.regressao.a}x + ${estatisticas.regressao.b}`} />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+              <p className="text-gray-500 text-center">Nenhuma medição disponível para cálculo estatístico.</p>
+            </div>
+          )}
           {/* --- FIM DA SEÇÃO DE ESTATÍSTICAS --- */}
 
-          {/* Gráfico de Média Diária Total */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold mb-4">📊 Média Diária do Mês</h3>
-            {dailyAvgs.length > 0 ? (
-              <Chart
-                dados={dailyAvgs.map((peso, index) => ({ name: dailyLabels[index] || `Dia ${index + 1}`, peso }))}
-                titulo="Média Diária do Mês"
-              />
-            ) : (
-              <p className="text-gray-500 text-center">Gráfico da Média Diária indisponível.</p>
-            )}
-          </div>
+          {/* Conteúdo do Relatório */}
+          <div className="mt-8 space-y-8">
+            {/* Gráfico Principal - Médias Diárias */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold mb-4">📊 Médias Diárias de Peso</h3>
+              {chartData && chartData.length > 0 ? (
+                <Chart
+                  dados={chartData}
+                  titulo={`Médias Diárias - ${selectedMonth}/${selectedYear}`}
+                />
+              ) : (
+                <div className="bg-gray-100 p-8 rounded-lg text-center">
+                  <p className="text-gray-500">Nenhum dado disponível para o gráfico principal.</p>
+                </div>
+              )}
+            </div>
 
-          {/* Gráfico Comparativo Esquerda x Direita */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold mb-4">⚖️ Comparativo Esquerda x Direita (por dia)</h3>
-            {(dailyAvgsEsq.length > 0 && dailyAvgsDir.length > 0) ? (
-              <Chart
-                dados={[
-                  { name: "Esquerda", data: dailyAvgsEsq, color: "#F46334" },
-                  { name: "Direita", data: dailyAvgsDir, color: "#36985B" }
-                ]}
-                labels={dailyLabels}
-                titulo="Comparativo de Peso por Dia"
-              />
-            ) : (
-              <p className="text-gray-500 text-center">Gráfico Comparativo indisponível ou dados insuficientes.</p>
-            )}
-          </div>
+            {/* Gráfico de Comparação - Esquerda vs Direita */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold mb-4">⚖️ Comparativo Esquerda vs Direita</h3>
+              {comparisonChartData && comparisonChartData.length > 0 ? (
+                <ComparisonChart
+                  dados={comparisonChartData}
+                  titulo={`Comparativo Diário - ${selectedMonth}/${selectedYear}`}
+                />
+              ) : (
+                <div className="bg-gray-100 p-8 rounded-lg text-center">
+                  <p className="text-gray-500">Nenhum dado disponível para o gráfico comparativo.</p>
+                </div>
+              )}
+            </div>
 
-          {/* Cards de Maior e Menor Medição */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            {maiorEsq && (
-              <div className="bg-white p-4 rounded-lg border-l-4 border-red-500 shadow-sm">
-                <h4 className="font-bold text-red-600">📈 Maior Medição (Esquerda)</h4>
-                <p><strong>Data:</strong> {new Date(maiorEsq.MedicaoData).toLocaleString("pt-BR", { locale: ptBR })}</p>
-                <p><strong>Peso:</strong> {maiorEsq.MedicaoPeso} kg</p>
-                <p><strong>Local:</strong> {maiorEsq.MedicaoLocal}</p>
-              </div>
-            )}
-            {maiorDir && (
-              <div className="bg-white p-4 rounded-lg border-l-4 border-red-500 shadow-sm">
-                <h4 className="font-bold text-red-600">📈 Maior Medição (Direita)</h4>
-                <p><strong>Data:</strong> {new Date(maiorDir.MedicaoData).toLocaleString("pt-BR", { locale: ptBR })}</p>
-                <p><strong>Peso:</strong> {maiorDir.MedicaoPeso} kg</p>
-                <p><strong>Local:</strong> {maiorDir.MedicaoLocal}</p>
-              </div>
-            )}
-            {menorEsq && (
-              <div className="bg-white p-4 rounded-lg border-l-4 border-green-500 shadow-sm">
-                <h4 className="font-bold text-green-600">📉 Menor Medição (Esquerda)</h4>
-                <p><strong>Data:</strong> {new Date(menorEsq.MedicaoData).toLocaleString("pt-BR", { locale: ptBR })}</p>
-                <p><strong>Peso:</strong> {menorEsq.MedicaoPeso} kg</p>
-                <p><strong>Local:</strong> {menorEsq.MedicaoLocal}</p>
-              </div>
-            )}
-            {menorDir && (
-              <div className="bg-white p-4 rounded-lg border-l-4 border-green-500 shadow-sm">
-                <h4 className="font-bold text-green-600">📉 Menor Medição (Direita)</h4>
-                <p><strong>Data:</strong> {new Date(menorDir.MedicaoData).toLocaleString("pt-BR", { locale: ptBR })}</p>
-                <p><strong>Peso:</strong> {menorDir.MedicaoPeso} kg</p>
-                <p><strong>Local:</strong> {menorDir.MedicaoLocal}</p>
-              </div>
-            )}
+            {/* Cards de Maior e Menor Medição */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              {maiorMenorMedicao.maiorEsq && (
+                <div className="bg-white p-4 rounded-lg border-l-4 border-red-500 shadow-sm">
+                  <h4 className="font-bold text-red-600">📈 Maior Medição (Esquerda)</h4>
+                  <p><strong>Data:</strong> {new Date(maiorMenorMedicao.maiorEsq.data).toLocaleString("pt-BR", { locale: ptBR })}</p>
+                  <p><strong>Peso:</strong> {maiorMenorMedicao.maiorEsq.peso} kg</p>
+                  {estatisticas.pesoMaximoPermitido.toFixed(2) < maiorMenorMedicao.maiorEsq.peso && (
+                    <p className="text-red-600 font-bold mt-2">
+                      ⚠️ Acima do limite permitido ({estatisticas.pesoMaximoPermitido.toFixed(2)} kg)
+                    </p>
+                  )}
+                </div>
+              )}
+              {maiorMenorMedicao.maiorDir && (
+                <div className="bg-white p-4 rounded-lg border-l-4 border-red-500 shadow-sm">
+                  <h4 className="font-bold text-red-600">📈 Maior Medição (Direita)</h4>
+                  <p><strong>Data:</strong> {new Date(maiorMenorMedicao.maiorDir.data).toLocaleString("pt-BR", { locale: ptBR })}</p>
+                  <p><strong>Peso:</strong> {maiorMenorMedicao.maiorDir.peso} kg</p>
+                  {estatisticas.pesoMaximoPermitido.toFixed(2) < maiorMenorMedicao.maiorDir.peso && (
+                    <p className="text-red-600 font-bold mt-2">
+                      ⚠️ Acima do limite permitido ({estatisticas.pesoMaximoPermitido.toFixed(2)} kg)
+                    </p>
+                  )}
+                </div>
+              )}
+              {maiorMenorMedicao.menorEsq && (
+                <div className="bg-white p-4 rounded-lg border-l-4 border-green-500 shadow-sm">
+                  <h4 className="font-bold text-green-600">📉 Menor Medição (Esquerda)</h4>
+                  <p><strong>Data:</strong> {new Date(maiorMenorMedicao.menorEsq.data).toLocaleString("pt-BR", { locale: ptBR })}</p>
+                  <p><strong>Peso:</strong> {maiorMenorMedicao.menorEsq.peso} kg</p>
+                  {estatisticas.pesoMaximoPermitido.toFixed(2) < maiorMenorMedicao.menorEsq.peso && (
+                    <p className="text-red-600 font-bold mt-2">
+                      ⚠️ Acima do limite permitido ({estatisticas.pesoMaximoPermitido.toFixed(2)} kg)
+                    </p>
+                  )}
+                </div>
+              )}
+              {maiorMenorMedicao.menorDir && (
+                <div className="bg-white p-4 rounded-lg border-l-4 border-green-500 shadow-sm">
+                  <h4 className="font-bold text-green-600">📉 Menor Medição (Direita)</h4>
+                  <p><strong>Data:</strong> {new Date(maiorMenorMedicao.menorDir.data).toLocaleString("pt-BR", { locale: ptBR })}</p>
+                  <p><strong>Peso:</strong> {maiorMenorMedicao.menorDir.peso} kg</p>
+                  {estatisticas.pesoMaximoPermitido.toFixed(2) < maiorMenorMedicao.menorDir.peso && (
+                    <p className="text-red-600 font-bold mt-2">
+                      ⚠️ Acima do limite permitido ({estatisticas.pesoMaximoPermitido.toFixed(2)} kg)
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-
-          {/* Mensagem se não houver medições */}
-          {totalMedicoes === 0 && (
-            <p className="text-gray-500 text-center">Nenhuma medição encontrada para este mês.</p>
-          )}
         </div>
       </main>
     </ProtectedRoute>

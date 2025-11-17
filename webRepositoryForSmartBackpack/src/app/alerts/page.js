@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute";
 import Header from "@/components/Header/Header";
-import Card from "@/components/Card/Card"; 
+import Card from "@/components/Card/Card";
 
 export default function AlertsPage() {
   const router = useRouter();
@@ -60,11 +60,13 @@ export default function AlertsPage() {
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || `Erro ${res.status} ao atualizar alerta.`);
+        throw new Error(
+          errorData.error || `Erro ${res.status} ao atualizar alerta.`
+        );
       }
 
-      setAlertas(prevAlertas =>
-        prevAlertas.map(a =>
+      setAlertas((prevAlertas) =>
+        prevAlertas.map((a) =>
           a.AlertaId === alertaId ? { ...a, AlertaStatus: "Lido" } : a
         )
       );
@@ -93,7 +95,7 @@ export default function AlertsPage() {
           <div className="text-red-500 p-4 text-center">
             <p>Erro: {error}</p>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push("/")}
               className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
             >
               Voltar para Início
@@ -151,7 +153,7 @@ export default function AlertsPage() {
                             e.stopPropagation();
                             handleMarcarComoLido(alerta.AlertaId);
                           }}
-                          className="mt-3 text-xs border-[#5CFF5C] border-2 hover:scale(1.02) hover:border-[#40bf5e] hover:bg-green-100 transition duration-300 text-green-900 px-3 py-1 rounded"
+                          className="mt-3 text-xs border-[#5CFF5C] border-2 hover:scale&#40;1.02&#41; hover:border-[#40bf5e] hover:bg-green-100 transition duration-300 text-green-900 px-3 py-1 rounded"
                         >
                           Marcar como Lido
                         </button>

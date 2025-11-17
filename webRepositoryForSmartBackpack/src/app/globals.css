@@ -26,4 +26,23 @@ body {
 }
 
 
+/* Transições suaves para os acordeões */
+.transition-all {
+  transition: all 0.3s ease-in-out;
+}
 
+/* Estilo para cards com alerta */
+.alert-card {
+  border-left: 4px solid #ef4444;
+  background-color: #fef2f2;
+}
+
+/* Estilo normal para cards */
+.normal-card {
+  border-left: 4px solid #10b981;
+  background-color: #f0fdf4;
+}
+
+.__nextjs-portal {
+  display: none !important;
+}

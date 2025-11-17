@@ -1,152 +1,393 @@
 "use client";
 
+import Image from "next/image";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/hooks/useAuth";
+import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute";
 import Header from "@/components/Header/Header";
-import Reveal from "@/components/Reveal/Reveal";
-import Footer from "@/components/Footer/Footer";
 
-export default function HomePage() {
-  return (
-    <main className="min-h-screen bg-gray-50 text-black">
-      <Header />
+import mochileiro from "../../../public/mochileiro.png";
+import mochileira from "../../../public/mochileira.png";
 
-      <Reveal direction="up" delay={0.1} duration={0.6}>
-        {/* Seção principal */}
-        <div className="max-w-7xl mx-auto px-6 py-2 flex flex-col md:flex-row items-center gap-8">
-          {/* Coluna esquerda: texto e botão */}
-          <div className="flex-1 text-center md:text-left">
-            <h1 className="text-4xl  text-gray-800 leading-tight mb-6">
-              INTELIGENTE POR DENTRO,
-              <br />
-              ㅤESTILOSA POR FORA.
-            </h1>
-            <button
-              className="px-6 py-3 border-4 border-[#7DFA48] rounded-full text-black font-medium hover:bg-[#7DFA48] hover:text-white transition-all duration-300 shadow-md"
-              onClick={() => {
-                document
-                  .getElementById("part2")
-                  ?.scrollIntoView({ behavior: "smooth" });
-              }}
-            >
-              CONHEÇA NOSSA MOCHILA
-            </button>
-          </div>
+// Função auxiliar para arredondar
+function roundTo2(num) {
+  return Math.round(num * 100) / 100;
+}
 
-          <Reveal direction="up" delay={0.2} duration={0.6}>
-            <div className="flex-1 relative w-full max-w-lg overflow-hidden hover:scale-101 transition-transform duration-500">
-              <div className="absolute inset-0 top-0 bg-[#7DFA48] rounded-3xl p-0 right-0"></div>
-              <Reveal direction="up" delay={0.4} duration={0.8}>
-                <div className="relative w-full h-auto p-6">
-                  <img
-                    src="/backpack-base-img.png"
-                    alt="Mochila inteligente"
-                    className="w-full h-auto object-cover transform -scale-x-100"
-                    style={{
-                      filter: "drop-shadow(0 60px 20px rgba(0, 0, 0, 0.34))",
-                      transform: "translateY(5px)",
-                    }}
-                  />
-                </div>
-              </Reveal>
-            </div>
-          </Reveal>
-        </div>
-      </Reveal>
+export default function HomeDashboard() {
+  const router = useRouter();
+  const { authFetch, logout } = useAuth();
 
-      <Reveal direction="up" delay={0.3} duration={0.6}>
-        <div className="flex flex-col md:flex-row items-center w-screen justify-center gap-8 max-w-full mx-auto px-6 py-12 bg-[#ADEBB3] rounded-3xl">
-          <div className="flex-1 relative w-full max-w-lg">
-            <div className="absolute inset-0 top-0 bg-white rounded-full p-0 right-0"></div>
+  const [loading, setLoading] = useState(true);
+  const [erroConexao, setErroConexao] = useState(false);
+  const [mostrarTela, setMostrarTela] = useState(false);
 
-            <div className="relative w-full h-auto p-8 hover:scale-101 transition-transform duration-500">
-              <img
-                src="/backpack-functions-img.png"
-                alt="Mochila inteligente"
-                className="w-full h-auto object-contain transform -scale-x-100"
-                style={{
-                  filter: "drop-shadow(0 60px 20px rgba(0, 0, 0, 0.20))",
-                  transform: "translateY(5px)",
-                }}
-                id="part2"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 text-center md:text-left">
-            <h1 className="text-4xl  text-gray-800 leading-tight mb-6">
-              DESIGN QUE IMPRESSIONA,
-              <br />
-              ㅤESPAÇO QUE SURPREENDE.
-            </h1>
-            <h2 className="text-2xl"> ◌ Nossa mochila foca na sua saúde.</h2>
-            <h2 className="text-2xl">
-              {" "}
-              ㅤㅤ◌ Não queremos peso algum sobre você.
-            </h2>
-            <h2 className="text-2xl">
-              {" "}
-              ㅤㅤㅤㅤ◌ Caso seu fardo seja pesado, te avisaremos.
-            </h2>
-          </div>
-        </div>
-      </Reveal>
-
-      {/* <Reveal direction="right" delay={0.5} duration={0.6}>
-        <div className="max-w-full bg-[#7DFA48] h-[600px] rounded-3xl overflow-hidden relative">
-          <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 w-64 h-64 bg-white rounded-full z-0 "></div>
-          <Reveal direction="up" delay={0.6} duration={0.6}>
-            <img
-              src="/backpack-back.png"
-              alt="Mochila"
-              className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-64 h-auto object-contain  hover:scale-105 transition-transform duration-500"
-              style={{
-                filter: "drop-shadow(0 60px 20px rgba(0, 0, 0, 0.30))",
-              }}
-            />
-          </Reveal>
-        </div>
-      </Reveal> */}
-
-      <Reveal direction="right" delay={0.5} duration={0.6}>
-        <div className="max-w-full bg-[#7DFA48] h-[600px] rounded-3xl overflow-hidden relative flex items-center justify-center p-8">
-          {/* Círculo branco com sombra */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-96 h-96 bg-white rounded-full shadow-lg z-0"></div>
-          </div>
-
-          {/* Imagem da mochila - sobre o círculo */}
-          <img
-            src="/backpack-back.png"
-            alt="Mochila"
-            className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-64 h-auto object-contain hover:scale-105 transition-transform duration-500"
-            style={{
-              filter: "drop-shadow(0 60px 20px rgba(0, 0, 0, 0.30))",
-            }}
-          />
-
-          {/* Texto à esquerda */}
-          <div className="absolute left-8 text-left text-black  text-xl">
-            <h1 className="text-4xl  text-gray-800 leading-tight mb-6">
-            SEMPRE
-            <br />
-            LEVE
-            <br />
-            COM VOCÊ.
-            </h1>
-          </div>
-
-          {/* Texto à direita */}
-          <div className="absolute right-8 text-right text-black  text-xl">
-            <h1 className="text-4xl  text-gray-800 leading-tight mb-6">
-            ELEGANTE,
-            <br />
-            PRÁTICA
-            <br />E LEVE.
-            </h1>
-          </div>
-        </div>
-      </Reveal>
-
-      <Footer />
-    </main>
+  // Dados do usuário
+  const [nomePessoa, setNomePessoa] = useState("");
+  const [pessoa, setPessoa] = useState("mochilaSolo");
+  const [pesoMaximo, setPesoMaximo] = useState(1);
+  const [pesoEsquerdo, setPesoEsquerdo] = useState(0);
+  const [pesoDireito, setPesoDireito] = useState(0);
+  const [dataUltimaAtualizacao, setDataUltimaAtualizacao] = useState(
+    new Date()
   );
+  const [pesoTotal, setPesoTotal] = useState(0);
+  const [percEsquerdo, setPercEsquerdo] = useState(0);
+  const [percDireito, setPercDireito] = useState(0);
+  const [temMochila, setTemMochila] = useState(true);
+  const [corTextoCirculo, setCorTextoCirculo] = useState("#338136ff");
+
+  const intervalRef = useRef(null);
+  const tentativasRef = useRef(0);
+
+  const imagensMochileiros = {
+    mochileiro: mochileiro,
+    mochileira: mochileira,
+  };
+
+  // 🔄 Função para obter dados do usuário (igual ao React Native)
+  const obterDadosUsuario = async () => {
+    try {
+      console.log("📡 Buscando dados do usuário...");
+
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/usuarios/id`
+      );
+
+      if (!response.ok) {
+        console.log(`❌ Erro ${response.status} ao obter dados do usuário`);
+        if (response.status === 401) {
+          logout();
+          router.push("/login");
+          return "false";
+        }
+        return "offline";
+      }
+
+      const data = await response.json();
+      console.log("✅ Dados do usuário obtidos:", data);
+      return data;
+    } catch (error) {
+      console.log("💥 Erro ao obter dados do usuário:", error);
+      return "offline";
+    }
+  };
+
+  // 🔄 Função principal para buscar dados
+  const buscarDados = async () => {
+    try {
+      console.log("🔄 Buscando dados da home...");
+      tentativasRef.current++;
+
+      if (tentativasRef.current > 3) {
+        console.log("🚫 Muitas tentativas falhas, parando...");
+        setErroConexao(true);
+        setLoading(false);
+        setMostrarTela(true);
+        return;
+      }
+
+      setDataUltimaAtualizacao(new Date());
+
+      // 🔄 Obtém dados do usuário (igual ao React Native)
+      const dataResponse = await obterDadosUsuario();
+
+      if (dataResponse === "false" || dataResponse === "offline") {
+        console.log("❌ Problema com tokens ou conexão");
+        if (dataResponse === "false") {
+          logout();
+          router.push("/login");
+        } else {
+          setErroConexao(true);
+        }
+        setLoading(false);
+        setMostrarTela(true);
+        return;
+      }
+
+      // ✅ CORREÇÃO: Extrai os dados do usuário da resposta (igual ao React Native)
+      let data;
+      if (dataResponse.ok === true && dataResponse.usuario) {
+        data = dataResponse.usuario; // Extrai do objeto {ok: true, usuario: {...}}
+      } else {
+        data = dataResponse; // Já é o objeto do usuário diretamente
+      }
+
+      tentativasRef.current = 0;
+      setErroConexao(false);
+
+      // Processa dados do usuário (igual ao React Native)
+      if (data.UsuarioPeso) {
+        setPesoMaximo(
+          data.UsuarioPeso * (data.UsuarioPesoMaximoPorcentagem / 100)
+        );
+      }
+
+      if (data.UsuarioNome) {
+        const nomeCompleto = data.UsuarioNome;
+        const primeiroNome = nomeCompleto.split(" ")[0];
+        setNomePessoa(primeiroNome);
+      }
+
+      if (data.UsuarioSexo === "Feminino") {
+        setPessoa("mochileira");
+      } else if (data.UsuarioSexo === "Masculino") {
+        setPessoa("mochileiro");
+      }
+
+      // 🔄 Busca dados da mochila (endpoint igual ao React Native)
+      const mochilaRes = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/usuarios-mochilas/mochilaUso`
+      );
+
+      if (!mochilaRes.ok) {
+        console.log("❌ Nenhuma mochila em uso ou erro ao buscar");
+        setTemMochila(false);
+        setPesoTotal(0);
+        setPesoEsquerdo(0);
+        setPesoDireito(0);
+        setPercEsquerdo(0);
+        setPercDireito(0);
+        setLoading(false);
+        setMostrarTela(true);
+        return;
+      }
+
+      const mochilaData = await mochilaRes.json();
+      console.log("🎒 Dados da mochila:", mochilaData);
+
+      if (mochilaData.mochila?.MochilaCodigo) {
+        // Busca medições da mochila (endpoint igual ao React Native)
+        const medicoesResponse = await authFetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/medicoes/atual/${mochilaData.mochila.MochilaCodigo}`
+        );
+
+        if (!medicoesResponse.ok) {
+          console.log("❌ Erro ao buscar medições");
+          setTemMochila(false);
+          setPesoTotal(0);
+          setPesoEsquerdo(0);
+          setPesoDireito(0);
+          setPercEsquerdo(0);
+          setPercDireito(0);
+          return;
+        }
+
+        const dataMedicao = await medicoesResponse.json();
+        console.log("📊 Dados da medição:", dataMedicao);
+
+        let pesoTotalConta = 0;
+
+        if (dataMedicao.esquerda && dataMedicao.direita) {
+          pesoTotalConta = roundTo2(
+            Number(dataMedicao.esquerda.MedicaoPeso) +
+              Number(dataMedicao.direita.MedicaoPeso)
+          );
+          setPesoTotal(pesoTotalConta);
+          setPesoEsquerdo(Number(dataMedicao.esquerda.MedicaoPeso));
+          setPesoDireito(Number(dataMedicao.direita.MedicaoPeso));
+          setPercEsquerdo(
+            Number(dataMedicao.esquerda.MedicaoPeso) / pesoTotalConta
+          );
+          setPercDireito(
+            Number(dataMedicao.direita.MedicaoPeso) / pesoTotalConta
+          );
+        } else {
+          setPesoTotal(0);
+          setPesoEsquerdo(0);
+          setPesoDireito(0);
+          setPercEsquerdo(0);
+          setPercDireito(0);
+        }
+
+        setTemMochila(true);
+
+        // Define cor do círculo baseado no peso (igual ao React Native)
+        if (pesoTotalConta > 0 && (pesoTotalConta / pesoMaximo) * 100 > 50) {
+          setCorTextoCirculo("#bd1c11ff");
+        } else {
+          setCorTextoCirculo("#338136ff");
+        }
+      } else {
+        setTemMochila(false);
+      }
+    } catch (error) {
+      console.log("💥 Erro geral na busca de dados:", error);
+      setErroConexao(true);
+    } finally {
+      setLoading(false);
+      setMostrarTela(true);
+    }
+  };
+
+  // 🔄 useEffect para inicialização e atualização periódica
+  useEffect(() => {
+    // Busca dados inicial
+    buscarDados();
+
+    // Configura intervalo para atualizações periódicas (20 segundos)
+    intervalRef.current = setInterval(() => {
+      if (!erroConexao) {
+        buscarDados();
+      }
+    }, 20000);
+
+    // Cleanup
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
+  // 🔄 Tenta reconectar quando erro de conexão
+  const tentarReconectar = () => {
+    setErroConexao(false);
+    setLoading(true);
+    tentativasRef.current = 0;
+    buscarDados();
+  };
+
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <Header />
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-center">Carregando dados...</p>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
+  return mostrarTela ? (
+    <ProtectedRoute>
+      <Header />
+      <main className="min-h-screen p-6 bg-gray-50 text-black">
+        <div className="max-w-4xl mx-auto">
+          {erroConexao ? (
+            // Tela de erro de conexão
+            <div className="flex flex-col items-center justify-center h-64">
+              <h2 className="text-xl font-bold text-red-600 mb-4">
+                Erro de Conexão
+              </h2>
+              <p className="text-center text-gray-600 mb-4">
+                Não foi possível conectar ao servidor.{"\n"}
+                Verifique sua conexão com a internet.
+              </p>
+              <button
+                onClick={tentarReconectar}
+                className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 font-semibold"
+              >
+                Tentar Novamente
+              </button>
+            </div>
+          ) : (
+            // Tela normal - mantido igual ao anterior
+            <>
+              <div className="flex flex-col items-center mb-8">
+                <h1 className="text-2xl font-bold text-center">
+                  Olá, {nomePessoa}!
+                </h1>
+                <p className="text-lg text-gray-600 text-center mt-2">
+                  Veja seu Peso em Tempo Real
+                </p>
+                <div className="mt-6">
+                  <div className="mt-6">
+                    <Image
+                      src={imagensMochileiros[pessoa]}
+                      alt={`Avatar ${pessoa}`}
+                      width={200}
+                      height={200}
+                      className="object-contain"
+                      priority
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {temMochila ? (
+                <div className="flex flex-col items-center">
+                  <div className="relative w-48 h-48 mb-6">
+                    <svg className="w-full h-full" viewBox="0 0 100 100">
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="45"
+                        fill="none"
+                        stroke="#338136ff"
+                        strokeWidth="10"
+                      />
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="45"
+                        fill="none"
+                        stroke="#bd1c11ff"
+                        strokeWidth="10"
+                        strokeDasharray="283"
+                        strokeDashoffset={
+                          283 - 283 * Math.min(pesoTotal / pesoMaximo, 1)
+                        }
+                        transform="rotate(-90 50 50)"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span
+                        className="text-2xl font-bold text-center leading-tight"
+                        style={{ color: corTextoCirculo }}
+                      >
+                        {Math.round((pesoTotal / pesoMaximo) * 100)}%<br />
+                        <span className="text-lg">{pesoTotal} Kg</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-sm font-semibold text-gray-700 mb-4">
+                    Peso máximo permitido: {roundTo2(pesoMaximo)} Kg
+                  </p>
+
+                  <div className="w-4/5 max-w-md h-6 border border-gray-800 rounded-md overflow-hidden flex mb-2">
+                    <div
+                      className="bg-[#F46334]"
+                      style={{ flex: percEsquerdo || 0.5 }}
+                    ></div>
+                    <div
+                      className="bg-[#36985B]"
+                      style={{ flex: percDireito || 0.5 }}
+                    ></div>
+                  </div>
+
+                  <div className="flex justify-between w-4/5 max-w-md text-sm font-semibold mb-6">
+                    <span style={{ color: "#F46334" }}>
+                      Esq.: {Math.round(percEsquerdo * 100)}% ({pesoEsquerdo}{" "}
+                      Kg)
+                    </span>
+                    <span style={{ color: "#36985B" }}>
+                      Dir.: {Math.round(percDireito * 100)}% ({pesoDireito} Kg)
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-gray-500">
+                    Atualizado {dataUltimaAtualizacao.toLocaleString("pt-BR")}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <p className="text-lg text-gray-600 text-center font-semibold">
+                    Nenhuma mochila em uso
+                  </p>
+                  <p className="text-gray-500 text-center mt-2">
+                    Selecione uma para começar
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </main>
+    </ProtectedRoute>
+  ) : null;
 }

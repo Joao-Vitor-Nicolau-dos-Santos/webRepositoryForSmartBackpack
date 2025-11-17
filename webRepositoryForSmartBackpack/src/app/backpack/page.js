@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Card from "@/components/Card/Card";
 import BackpackForm from "@/components/BackPackForm/BackpackForm";
-import { useAuth } from "@/app/hooks/useAuth"; 
-import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute"; 
+import { useAuth } from "@/app/hooks/useAuth";
+import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute";
 import Header from "@/components/Header/Header";
 
 export default function BackpackPage() {
@@ -137,44 +137,58 @@ export default function BackpackPage() {
         <div className="max-w-4xl mx-auto bg-white p-6 rounded-2xl">
           <h2 className="text-2xl font-semibold text-center">Minhas Mochilas</h2>
 
-          <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 ">
+          <section className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             {mochilas.length > 0 ? (
-              mochilas.map((m) => (
-                <Card
-                  key={m.MochilaCodigo}
-                  title={`${m.MochilaNome || m.MochilaDescricao}`}
-                  description={`Peso máximo: ${m.MochilaPesoMax} kg | Status: ${m.UsoStatus}`}
-                >
-                  <div className="flex gap-2 mt-2 justify-center">
-                    <span className="text-sm text-gray-600">
+              mochilas.map((m) => {
+                // 🔹 CORREÇÃO: Declarar a variável DENTRO da função map
+                const dataTexto = m.UsoStatus === "Usando"
+                  ? m.DataInicioUso
+                    ? "Data Início: " + new Date(m.DataInicioUso).toLocaleDateString()
+                    : "Data Início: Na"
+                  : m.DataFimUso
+                    ? "Último Uso: " + new Date(m.DataFimUso).toLocaleDateString()
+                    : "Último Uso: Na";
+
+                return ( // 🔹 CORREÇÃO: Adicionar return
+                  <Card
+                    key={m.MochilaCodigo} // 🔹 CORREÇÃO: Adicionar key
+                    codigoMochila={m.MochilaCodigo}
+                    nome={m.MochilaNome}
+                    descricao={`Descrição: ${m.MochilaDescricao}`}
+                    data={dataTexto}
+                  >
+                    {/* 🔹 CORREÇÃO: Conteúdo deve estar DENTRO do componente Card */}
+                    <div className="flex gap-2 mt-2 justify-center">
+                      <span className="text-sm text-gray-600">
+                        {m.UsoStatus === "Usando" ? (
+                          <span className="text-green-600">Em uso</span>
+                        ) : m.UsoStatus === "Último a Usar" ? (
+                          <span className="text-yellow-600">Último a usar</span>
+                        ) : (
+                          <span className="text-red-900">Não está em uso</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex gap-2 mt-3 justify-center">
                       {m.UsoStatus === "Usando" ? (
-                        <span className="text-green-600">Em uso</span>
-                      ) : m.UsoStatus === "Último a Usar" ? (
-                        <span className="text-yellow-600">Último a usar</span>
+                        <button
+                          onClick={() => handleEncerrarUso(m.MochilaCodigo)}
+                          className="bg-red-400 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
+                        >
+                          Encerrar uso
+                        </button>
                       ) : (
-                        <span className="text-red-900">Não está em uso</span>
+                        <button
+                          onClick={() => handleAssumirUso(m.MochilaCodigo)}
+                          className="bg-[#5CFF5C] hover:scale(1.02) hover:bg-[#40bf5e] transition duration-300 text-white px-3 py-1 rounded text-sm"
+                        >
+                          Assumir uso
+                        </button>
                       )}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 mt-3 justify-center">
-                    {m.UsoStatus === "Usando" ? (
-                      <button
-                        onClick={() => handleEncerrarUso(m.MochilaCodigo)}
-                        className="bg-red-400 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
-                      >
-                        Encerrar uso
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleAssumirUso(m.MochilaCodigo)}
-                        className="bg-[#5CFF5C] hover:scale(1.02) hover:bg-[#40bf5e] transition duration-300 text-white px-3 py-1 rounded text-sm"
-                      >
-                        Assumir uso
-                      </button>
-                    )}
-                  </div>
-                </Card>
-              ))
+                    </div>
+                  </Card>
+                );
+              })
             ) : (
               <p className="col-span-2 text-center text-gray-500">
                 Nenhuma mochila vinculada ainda.
@@ -197,9 +211,8 @@ export default function BackpackPage() {
             />
             {msg && (
               <p
-                className={`mt-2 text-sm ${
-                  msg.includes("sucesso") ? "text-green-600" : "text-red-600"
-                }`}
+                className={`mt-2 text-sm ${msg.includes("sucesso") ? "text-green-600" : "text-red-600"
+                  }`}
               >
                 {msg}
               </p>
@@ -213,6 +226,6 @@ export default function BackpackPage() {
           </section>
         </div>
       </main>
-    </ProtectedRoute>
+    </ProtectedRoute >
   );
 }

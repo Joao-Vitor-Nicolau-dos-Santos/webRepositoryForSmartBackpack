@@ -8,20 +8,24 @@ import {
   FiBarChart2,
   FiActivity,
   FiClock,
+  FiBarChart,
 } from "react-icons/fi"; // Ícones
 import ProtectedRoute from "@/components/ProtectedRoutes/ProtectedRoute";
 import Header from "@/components/Header/Header";
 import ReportOptionCard from "@/components/ReportOptionCard/ReportOptionCard";
+import { useSearchParams } from 'next/navigation';
 
 export default function MochilaReportOptionsPage({ params }) {
   const router = useRouter();
   const resolvedParams = React.use(params);
   const { mochilaCodigo } = resolvedParams;
+  const searchParams = useSearchParams();
+  const nomeMochila = searchParams.get('nome');
 
   // Mock de dados da mochila (você pode buscá-los via API se necessário)
   const mochila = {
     MochilaCodigo: mochilaCodigo,
-    MochilaNome: `Mochila ${mochilaCodigo}`,
+    MochilaNome: `${nomeMochila}`,
     // MochilaDescricao: `Descrição da mochila ${mochilaCodigo}`, // Substituir por descrição real se tiver
   };
 
@@ -45,6 +49,11 @@ export default function MochilaReportOptionsPage({ params }) {
       titulo: "Anual",
       href: `/reports/${mochilaCodigo}/annual`,
       Icon: FiCalendar,
+    },
+    {
+      titulo: "Previsão Futura",
+      href: `/reports/${mochilaCodigo}/futurePrediction`,
+      Icon: FiBarChart,
     },
   ];
 

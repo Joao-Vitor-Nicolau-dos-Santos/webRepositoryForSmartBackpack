@@ -66,9 +66,9 @@ export default function LoginPage() {
       console.log("Estado de autenticação sincronizado.");
 
       // Redireciona após login bem-sucedido e sincronização
-      console.log("Enviando para /backpack");
-      router.push("/backpack");
-      let message = "Enviado /backpack";
+      console.log("Enviando para /home");
+      router.push("/home");
+      let message = "Enviado /home";
       console.log(message);
     } catch (err) {
       setError(err.message || "Erro de conexão com o servidor.");
